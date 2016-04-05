@@ -61,7 +61,7 @@ Class.create("AjxpMqObserver", {
     },
 
     initForRepoId:function(repoId){
-        if(window.WebSocket && this.configs.get("WS_SERVER_ACTIVE")){
+        if (this.configs.get("WS_SERVER_ACTIVE")){
 
             if(this.ws) {
                 if(!repoId){
@@ -85,21 +85,24 @@ Class.create("AjxpMqObserver", {
                         + ":"+this.configs.get("WS_SERVER_PORT")
                         + this.configs.get("WS_SERVER_PATH");
 
-                    this.ws = io(url + '?token=' + Connexion.SECURE_TOKEN);
+                    this.ws = io(url + '?token=' + Connexion.SECURE_TOKEN, {
+                        reconnection: false,
+                        transports:['websocket']
+                    });
 
                     this.ws.on('message', function(message){
-
-                        console.log('Received message ', message);
-
                         var xmlContent = new DOMParser().parseFromString(message, "text/xml");
                         PydioApi.getClient().parseXmlMessage(xmlContent);
                         ajaxplorer.notify("server_message", xmlContent);
                     }.bind(this));
 
-                    this.ws.emit("register", { my: repoId });
+                    this.ws.on('connect', function () {
+                        this.ws.emit("register", { my: repoId });
+                    }.bind(this));
 
                     this.ws.on('close', function(event){
                         var reason;
+
                         // See http://tools.ietf.org/html/rfc6455#section-7.4.1
                         if (event.code == 1000)
                             reason = "Normal closure, meaning that the purpose for which the connection was established has been fulfilled.";
@@ -129,24 +132,29 @@ Class.create("AjxpMqObserver", {
                             reason = "The connection was closed due to a failure to perform a TLS handshake (e.g., the server certificate can't be verified).";
                         else
                             reason = "Unknown reason";
+
                         if(window.console){
                             console.error("WebSocket Closed Connection for this reason :" + reason + " (code "+event.code+")");
                             console.error("Switching back to polling");
                         }
+
                         delete this.ws;
+
                         this.configs.set("WS_SERVER_ACTIVE", false);
                         this.initForRepoId(repoId);
-
                     }.bind(this));
 
-                    this.ws.on('error', function() {
+                    function revertToPolling() {
                         if(window.console){
                             console.error("Cannot login to websocket server, switching back to polling");
                         }
                         delete this.ws;
                         this.configs.set("WS_SERVER_ACTIVE", false);
                         this.initForRepoId(repoId);
-                    }.bind(this));
+                    }
+
+                    this.ws.on('connect_error', revertToPolling.bind(this))
+                    this.ws.on('disconnect', revertToPolling.bind(this))
                 }
             }
 

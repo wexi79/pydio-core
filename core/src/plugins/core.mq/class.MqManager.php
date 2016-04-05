@@ -186,21 +186,25 @@ class MqManager extends AJXP_Plugin
                 ]
             ];
 
-            $client = new ElephantIO\Client(
-                new ElephantIO\Engine\SocketIO\Version1X($url, ['context' => [
-                    'http' => $httpContext
-                ]])
-            );
+            try {
+                $client = new ElephantIO\Client(
+                    new ElephantIO\Engine\SocketIO\Version1X($url, ['context' => [
+                        'http' => $httpContext
+                    ]])
+                );
 
-            $client->initialize();
+                $client->initialize();
 
-            $client->of('/private');
-            $client->emit('message', [
-                'repoId' => $repositoryId,
-                'message' => json_encode($input)
-            ]);
+                $client->of('/private');
+                $client->emit('message', [
+                    'repoId' => $repositoryId,
+                    'message' => json_encode($input)
+                ]);
 
-            $client->close();
+                $client->close();
+            } catch (Exception $e) {
+                
+            }
         }
     }
 
