@@ -5,6 +5,7 @@
         <resources>
             <i18n namespace="core.mq" path="plugins/core.mq/i18n"/>
             <js className="AjxpMqObserver" file="plugins/core.mq/class.AjxpMqObserver.js"/>
+            <js className="Socket" file="plugins/core.mq/node_modules/socket.io-client/socket.io.js"/>
         </resources>
     </client_settings>
     <server_settings>
@@ -43,6 +44,8 @@
                                 ajaxplorer.mqObserver = new AjxpMqObserver();
                             }, true);
                         }
+
+                        ResourcesManager.prototype.loadJSResource('plugins/core.mq/node_modules/socket.io-client/socket.io.js', 'Socket', function () {}, true);
                     ]]></clientListener>
                     <serverCallback methodName="clientChannelMethod" restParams="/channel/client_id" developerComment="Subscribe to given queue of events.">
                         <input_param name="channel" type="string" description="Channel to connect to"/>
@@ -71,7 +74,7 @@
                     </serverCallback>
                 </processing>
             </action>
-            <action name="ws_authenticate" skipSecureToken="true">
+            <action name="ws_authenticate">
                 <processing>
                     <serverCallback methodName="wsAuthenticate"/>
                 </processing>

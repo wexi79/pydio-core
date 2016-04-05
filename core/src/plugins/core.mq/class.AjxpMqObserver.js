@@ -65,33 +65,40 @@ Class.create("AjxpMqObserver", {
 
             if(this.ws) {
                 if(!repoId){
-                    this.ws.onclose = function(){
+                    this.ws.on('close', function(){
                         delete this.ws;
-                    }.bind(this);
-                    this.ws.close();
+                    }.bind(this));
 
+                    this.ws.close();
                 } else {
                     try{
-                        this.ws.send("register:" + repoId);
+                        this.ws.emit("register", { my: repoId });
                     }catch(e){
                         if(console) console.log('Error while sending WebSocket message: '+ e.message);
                     }
                 }
             }else{
                 if(repoId){
-                    var url = "ws"+(this.configs.get("WS_SERVER_SECURE")?"s":"")+"://"+this.configs.get("WS_SERVER_HOST")+":"+this.configs.get("WS_SERVER_PORT")+this.configs.get("WS_SERVER_PATH");
-                    this.ws = new WebSocket(url);
-                    this.ws.onmessage = function(event){
-                        var obj = parseXml(event.data);
-                        if(obj){
-                            PydioApi.getClient().parseXmlMessage(obj);
-                            ajaxplorer.notify("server_message", obj);
-                        }
-                    };
-                    this.ws.onopen = function(){
-                        this.ws.send("register:" + repoId);
-                    }.bind(this);
-                    this.ws.onclose = function(event){
+
+                    var url = "http"+(this.configs.get("WS_SERVER_SECURE")?"s":"")
+                        + "://"+this.configs.get("WS_SERVER_HOST")
+                        + ":"+this.configs.get("WS_SERVER_PORT")
+                        + this.configs.get("WS_SERVER_PATH");
+
+                    this.ws = io(url + '?token=' + Connexion.SECURE_TOKEN);
+
+                    this.ws.on('message', function(message){
+
+                        console.log('Received message ', message);
+
+                        var xmlContent = new DOMParser().parseFromString(message, "text/xml");
+                        PydioApi.getClient().parseXmlMessage(xmlContent);
+                        ajaxplorer.notify("server_message", xmlContent);
+                    }.bind(this));
+
+                    this.ws.emit("register", { my: repoId });
+
+                    this.ws.on('close', function(event){
                         var reason;
                         // See http://tools.ietf.org/html/rfc6455#section-7.4.1
                         if (event.code == 1000)
@@ -130,15 +137,16 @@ Class.create("AjxpMqObserver", {
                         this.configs.set("WS_SERVER_ACTIVE", false);
                         this.initForRepoId(repoId);
 
-                    }.bind(this);
-                    this.ws.onerror = function(){
+                    }.bind(this));
+
+                    this.ws.on('error', function() {
                         if(window.console){
                             console.error("Cannot login to websocket server, switching back to polling");
                         }
                         delete this.ws;
                         this.configs.set("WS_SERVER_ACTIVE", false);
                         this.initForRepoId(repoId);
-                    }.bind(this);
+                    }.bind(this));
                 }
             }
 

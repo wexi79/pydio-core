@@ -22,6 +22,7 @@
 defined('AJXP_EXEC') or die( 'Access not allowed');
 
 // DL and install install vendor (composer?) https://github.com/Devristo/phpws
+require 'vendor/autoload.php';
 
 
 /**
@@ -166,8 +167,6 @@ class MqManager extends AJXP_Plugin
         // Publish for WebSockets
         $configs = $this->getConfigs();
         if ($configs["WS_SERVER_ACTIVE"]) {
-
-            require_once($this->getBaseDir()."/vendor/phpws/websocket.client.php");
             // Publish for websockets
             $input = array("REPO_ID" => $repositoryId, "CONTENT" => "<tree>".$xmlContent."</tree>");
             if(isSet($userId)){
@@ -178,16 +177,31 @@ class MqManager extends AJXP_Plugin
             if(count($nodePathes)) {
                 $input["NODE_PATHES"] = $nodePathes;
             }
-            $input = serialize($input);
-            $msg = WebSocketMessage::create($input);
-            if (!isset($this->wsClient)) {
-                $this->wsClient = new WebSocket("ws://".$configs["WS_SERVER_BIND_HOST"].":".$configs["WS_SERVER_BIND_PORT"].$configs["WS_SERVER_PATH"]);
-                $this->wsClient->addHeader("Admin-Key", $configs["WS_SERVER_ADMIN"]);
-                @$this->wsClient->open();
-            }
-            @$this->wsClient->sendMessage($msg);
-        }
 
+            $url = rtrim("http://" . $configs["WS_SERVER_BIND_HOST"] . ":" . $configs["WS_SERVER_BIND_PORT"], '/');
+
+            $httpContext = [
+                'header' => [
+                    'Admin-Key: ' . $configs["WS_SERVER_ADMIN"]
+                ]
+            ];
+
+            $client = new ElephantIO\Client(
+                new ElephantIO\Engine\SocketIO\Version1X($url, ['context' => [
+                    'http' => $httpContext
+                ]])
+            );
+
+            $client->initialize();
+
+            $client->of('/private');
+            $client->emit('message', [
+                'repoId' => $repositoryId,
+                'message' => json_encode($input)
+            ]);
+
+            $client->close();
+        }
     }
 
     /**
@@ -268,11 +282,11 @@ class MqManager extends AJXP_Plugin
 
     public function wsAuthenticate($action, $httpVars, $fileVars)
     {
-        $this->logDebug("Entering wsAuthenticate");
+        /*$this->logDebug("Entering wsAuthenticate");
         $configs = $this->getConfigs();
         if (!isSet($httpVars["key"]) || $httpVars["key"] != $configs["WS_SERVER_ADMIN"]) {
             throw new Exception("Cannot authentify admin key");
-        }
+        }*/
         $user = AuthService::getLoggedUser();
         if ($user == null) {
             $this->logDebug("Error Authenticating through WebSocket (not logged)");
