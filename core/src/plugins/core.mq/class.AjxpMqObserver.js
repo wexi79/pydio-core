@@ -79,28 +79,22 @@ Class.create("AjxpMqObserver", {
                 }
             }else{
                 if(repoId){
+                    var serverType = this.configs.get("WS_SERVER_TYPE");
 
-                    var url = "http"+(this.configs.get("WS_SERVER_SECURE")?"s":"")
-                        + "://"+this.configs.get("WS_SERVER_HOST")
-                        + ":"+this.configs.get("WS_SERVER_PORT")
-                        + this.configs.get("WS_SERVER_PATH");
+                    console.log(serverType);
 
-                    this.ws = io(url + '?token=' + Connexion.SECURE_TOKEN, {
-                        reconnection: false,
-                        transports:['websocket']
-                    });
-
-                    this.ws.on('message', function(message){
+                    var onMessage = function(message){
+                        console.log('HERE');
                         var xmlContent = new DOMParser().parseFromString(message, "text/xml");
                         PydioApi.getClient().parseXmlMessage(xmlContent);
                         ajaxplorer.notify("server_message", xmlContent);
-                    }.bind(this));
+                    }
 
-                    this.ws.on('connect', function () {
+                    var onConnect = function () {
                         this.ws.emit("register", { my: repoId });
-                    }.bind(this));
+                    }
 
-                    this.ws.on('close', function(event){
+                    var onClose = function(event){
                         var reason;
 
                         // See http://tools.ietf.org/html/rfc6455#section-7.4.1
@@ -142,9 +136,9 @@ Class.create("AjxpMqObserver", {
 
                         this.configs.set("WS_SERVER_ACTIVE", false);
                         this.initForRepoId(repoId);
-                    }.bind(this));
+                    }
 
-                    function revertToPolling() {
+                    function revertToPolling(e) {
                         if(window.console){
                             console.error("Cannot login to websocket server, switching back to polling");
                         }
@@ -153,8 +147,36 @@ Class.create("AjxpMqObserver", {
                         this.initForRepoId(repoId);
                     }
 
-                    this.ws.on('connect_error', revertToPolling.bind(this))
-                    this.ws.on('disconnect', revertToPolling.bind(this))
+                    if (serverType == 'npm') {
+
+                        var url = "http"+(this.configs.get("WS_SERVER_SECURE")?"s":"")
+                            + "://"+this.configs.get("WS_SERVER_HOST")
+                            + ":"+this.configs.get("WS_SERVER_PORT")
+                            + this.configs.get("WS_SERVER_PATH");
+
+                        this.ws = io(url + '?token=' + Connexion.SECURE_TOKEN, {
+                            reconnection: false,
+                            transports:['websocket']
+                        });
+
+                        this.ws.on('connect', onConnect.bind(this));
+                        this.ws.on('close', onClose.bind(this));
+                        this.ws.on('message', onMessage.bind(this));
+                        this.ws.on('connect_error', revertToPolling.bind(this));
+                        this.ws.on('disconnect', revertToPolling.bind(this));
+
+                    } else {
+
+                        var url = "ws"+(this.configs.get("WS_SERVER_SECURE")?"s":"")+"://"+this.configs.get("WS_SERVER_HOST")+":"+this.configs.get("WS_SERVER_PORT")+this.configs.get("WS_SERVER_PATH");
+
+                        this.ws = new WebSocket(url);
+
+                        this.ws.emit = this.ws.send.bind(this);
+                        this.ws.onconnect = onConnect.bind(this);
+                        this.ws.onclose = onClose.bind(this);
+                        this.ws.onmessage = onMessage.bind(this);
+                        this.ws.ondisconnect = revertToPolling.bind(this);
+                    }
                 }
             }
 

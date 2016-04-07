@@ -1,8 +1,12 @@
 #!/php -q
 <?php
 // Run from command prompt > php demo.php
-require_once("vendor/phpws/websocket.server.php");
-require_once("../../core/classes/class.HttpClient.php");
+require_once("vendor/autoload.php");
+use Devristo\Phpws\Server\WebSocketServer;
+use Devristo\Phpws\Server\UriHandler\WebSocketUriHandler;
+
+//require_once(__DIR__ . "/vendor/phpws/websocket.server.php");
+require_once(__DIR__ . "/../../core/classes/class.HttpClient.php");
 /**
  * This demo resource handler will respond to all messages sent to /echo/ on the socketserver below
  *
@@ -92,12 +96,19 @@ class AjaxplorerSocketServer implements IWebSocketServerObserver
 
     public function onConnect(IWebSocketConnection $user)
     {
+        $this->say("[ECHO] Connection received");
+
         if ($user->getAdminKey() == self::$ADMIN_KEY) {
             $this->say("[ECHO] Admin user connected");
             return;
         }
 
         $h = $user->getHeaders();
+        if (!isset($h["Cookie"])) {
+            $this->say("[ECHO] Cookie header not received");
+            return;
+        }
+
         /*
          * @todo
          * Handle a REST auth instead of cookie based.
@@ -108,7 +119,7 @@ class AjaxplorerSocketServer implements IWebSocketServerObserver
         $client->cookies = $c;
         $client->get("/{$this->path}/?get_action=ws_authenticate&key=".self::$ADMIN_KEY);
         $registry = $client->getContent();
-        //$this->say("[ECHO] Registry loaded".$registry);
+        $this->say("[ECHO] Registry loaded".$registry);
         $xml = new DOMDocument();
         $xml->loadXML($registry);
         $xPath = new DOMXPath($xml);
@@ -135,17 +146,17 @@ class AjaxplorerSocketServer implements IWebSocketServerObserver
 
     public function onMessage(IWebSocketConnection $user, IWebSocketMessage $msg)
     {
-        //$this->say("[ECHO] {$user->getId()} says '{$msg->getData()}'");
+        $this->say("[ECHO] {$user->getId()} says '{$msg->getData()}'");
     }
 
     public function onDisconnect(IWebSocketConnection $user)
     {
-        //$this->say("[ECHO] {$user->getId()} disconnected");
+        $this->say("[ECHO] {$user->getId()} disconnected");
     }
 
     public function onAdminMessage(IWebSocketConnection $user, IWebSocketMessage $msg)
     {
-        //$this->say("[ECHO] Admin Message received!");
+        $this->say("[ECHO] Admin Message received!");
     }
 
     public function say($msg)

@@ -23,6 +23,7 @@ defined('AJXP_EXEC') or die( 'Access not allowed');
 
 // DL and install install vendor (composer?) https://github.com/Devristo/phpws
 require 'vendor/autoload.php';
+require 'vendor/phpws/websocket.client.php';
 
 
 /**
@@ -203,7 +204,7 @@ class MqManager extends AJXP_Plugin
 
                 $client->close();
             } catch (Exception $e) {
-                
+
             }
         }
     }
@@ -322,12 +323,12 @@ class MqManager extends AJXP_Plugin
                 throw new Exception("Web Socket server seems to already be running!");
             }
         }
-        $host = escapeshellarg($params["WS_SERVER_BIND_HOST"]);
-        $port = escapeshellarg($params["WS_SERVER_BIND_PORT"]);
-        $path = escapeshellarg($params["WS_SERVER_PATH"]);
-        $cmd = ConfService::getCoreConf("CLI_PHP")." ws-server.php -host=".$host." -port=".$port." -path=".$path;
-        chdir(AJXP_INSTALL_PATH.DIRECTORY_SEPARATOR.AJXP_PLUGINS_FOLDER.DIRECTORY_SEPARATOR."core.mq");
-        $process = AJXP_Controller::runCommandInBackground($cmd, null);
+
+        $cmd = $this->getWebSocketStartCmd($params);
+
+        $process = AJXP_Controller::runCommandInBackground($cmd, '/tmp/debug.out');
+
+        // For the last command, (the one that starts the server), save the process pid
         if ($process != null) {
             $pId = $process->getPid();
             $wDir = $this->getPluginWorkDir(true);
@@ -336,6 +337,7 @@ class MqManager extends AJXP_Plugin
         }
         return "SUCCESS: Started WebSocket Server";
     }
+
 
     public function switchWebSocketOff($params)
     {
@@ -353,21 +355,75 @@ class MqManager extends AJXP_Plugin
         return "SUCCESS: Killed WebSocket Server";
     }
 
-    public function getWebSocketStatus()
+    public function getWebSocketStartCmd($params)
     {
-        $wDir = $this->getPluginWorkDir(true);
-        $pidFile = $wDir.DIRECTORY_SEPARATOR."ws-pid";
-        if (!file_exists($pidFile)) {
-            return "OFF";
-        } else {
-            $pId = file_get_contents($pidFile);
-            $unixProcess = new UnixProcess();
-            $unixProcess->setPid($pId);
-            $status = $unixProcess->status();
-            if($status) return "ON";
-            else return "OFF";
+
+        // Default to saved config
+        $params += $this->pluginConf;
+
+        $serverType = $params["WS_SERVER_TYPE"]['server'];
+        $hostClient = $params["WS_SERVER_HOST"];
+        $portClient = $params["WS_SERVER_PORT"];
+        $portServer = $params["WS_SERVER_BIND_PORT"];
+        $path = escapeshellarg($params["WS_SERVER_PATH"]);
+
+        $prefix = AJXP_INSTALL_PATH.DIRECTORY_SEPARATOR.AJXP_PLUGINS_FOLDER.DIRECTORY_SEPARATOR."core.mq";
+
+        switch ($serverType) {
+            case "npm" :
+                $cmd = ConfService::getCoreConf("CLI_NPM") . " start --prefix " . $prefix . " --server-bind-port=" . $portServer . " -server-port=" . $portClient;
+
+                break;
+            default:
+                $cmd = ConfService::getCoreConf("CLI_PHP") . " " . $prefix . DIRECTORY_SEPARATOR . "ws-server.php -host=" . $hostClient . " -port=" . $portClient . " -path=" . $path;
+                break;
         }
 
+        return $cmd;
     }
 
+    public function getWebSocketStatus($params)
+    {
+        $params += $this->pluginConf;
+
+        set_error_handler(array($this, 'errHandle'));
+
+        try {
+            switch ($params["WS_SERVER_TYPE"]["server"]) {
+                case "npm" :
+                    $url = rtrim("http://" . $params["WS_SERVER_BIND_HOST"] . ":" . $params["WS_SERVER_BIND_PORT"], '/');
+
+                    $client = new ElephantIO\Client(new ElephantIO\Engine\SocketIO\Version1X($url));
+
+                    $client->initialize();
+                    $client->emit('broadcast', ['foo' => 'bar']);
+                    $client->close();
+                    break;
+
+                default:
+                    $url = rtrim("ws://" . $params["WS_SERVER_BIND_HOST"] . ":" . $params["WS_SERVER_BIND_PORT"], '/');
+
+                    $msg = WebSocketMessage::create('test');
+
+                    $client = new WebSocket($url);
+                    $socket = $client->open();
+            }
+        } catch (Exception $e) {
+            return "OFF";
+        }
+
+        restore_error_handler();
+
+        return "ON";
+    }
+
+    function errHandle($errNo, $errStr, $errFile, $errLine) {
+
+        $msg = "$errStr in $errFile on line $errLine";
+        if ($errNo == E_NOTICE || $errNo == E_WARNING) {
+            throw new ErrorException($msg, $errNo);
+        } else {
+            echo $msg;
+        }
+    }
 }

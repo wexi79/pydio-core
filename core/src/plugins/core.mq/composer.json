@@ -1,5 +1,6 @@
 {
     "require": {
-        "wisembly/elephant.io": "~3.0"
+        "wisembly/elephant.io": "~3.0",
+        "devristo/phpws": "dev-master"
     }
 }

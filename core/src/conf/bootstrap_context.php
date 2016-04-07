@@ -76,7 +76,7 @@ define("AJXP_KVCACHE_IGNORE", true);
 
 // DEBUG OPTIONS
 define("AJXP_CLIENT_DEBUG"  ,	false);
-define("AJXP_SERVER_DEBUG"  ,	false);
+define("AJXP_SERVER_DEBUG"  ,	true);
 define("AJXP_SKIP_CACHE"    ,   false);
 
 // PBKDF2 CONSTANTS FOR A SECURE STORAGE OF PASSWORDS
