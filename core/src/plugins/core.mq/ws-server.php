@@ -56,7 +56,6 @@ class PublicSocketHandler extends WebSocketUriHandler {
 
         $registry= null;
 
-        var_dump($host);
         $client = new GuzzleHttp\Client(['base_url' => $host]);
 
         $response = $client->get('/index.php/?get_action=ws_authenticate', ['cookies' => $c]);
@@ -83,7 +82,7 @@ class PublicSocketHandler extends WebSocketUriHandler {
                 if (!empty($groupPath)) $user->ajxpGroupPath = $groupPath;
             }
 
-            print_r('[ECHO] User \'' . $user->ajxpId . '\' connected with ' . count($user->ajxpRepositories) . ' registered repositories ');
+            print('[ECHO] User \'' . $user->ajxpId . '\' connected with ' . count($user->ajxpRepositories) . ' registered repositories ' . PHP_EOL);
         }
     }
 
@@ -103,13 +102,13 @@ class PublicSocketHandler extends WebSocketUriHandler {
                     $user->currentRepository = $regId;
                 }
 
-                print_r("Registering repo "  . $regId);
+                print("Registering repo "  . $regId . PHP_EOL);
                 break;
 
             case "unregister":
                 unset($user->currentRepository);
 
-                print_r("Unregistering");
+                print("Unregistering" . PHP_EOL);
                 break;
         }
     }
@@ -152,29 +151,18 @@ class PrivateSocketHandler extends WebSocketUriHandler {
             $userGroupPath = isset($msg->GROUP_PATH) ? $msg->GROUP_PATH : false;
             $content = $msg->CONTENT;
 
-            print_r('Admin message dispatcher');
+            print('Admin message dispatcher' . PHP_EOL);
 
             foreach ($this->publicHandler->getConnections() as $conn) {
                 if($conn == $user) continue;
 
-                if ($repoId != 'AJXP_REPO_SCOPE_ALL' && (!isSet($conn->currentRepository) || $conn->currentRepository != $repoId)) {
-                    print_r('Skipping, not the same repository');
-                    continue;
-                }
+                if ($repoId != 'AJXP_REPO_SCOPE_ALL' && (!isSet($conn->currentRepository) || $conn->currentRepository != $repoId)) continue;
 
-                if ($userId != false && $conn->ajxpId != $userId) {
-                    var_dump($userId);
-                    var_dump($conn->ajxpId);
-                    print_r('Skipping, not the same userId');
-                    continue;
-                }
+                if ($userId != false && $conn->ajxpId != $userId) continue;
 
-                if ($userGroupPath != false && (!isSet($conn->ajxpGroupPath) || $conn->ajxpGroupPath!=$userGroupPath)) {
-                    print_r('Skipping, not the same groupPath');
-                    continue;
-                }
+                if ($userGroupPath != false && (!isSet($conn->ajxpGroupPath) || $conn->ajxpGroupPath!=$userGroupPath)) continue;
 
-                print_r('Should dispatch to user '.$conn->ajxpId);
+                print('Should dispatch to user '.$conn->ajxpId . PHP_EOL);
                 $conn->sendString($content);
             }
         }
