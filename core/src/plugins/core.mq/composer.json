@@ -2,5 +2,10 @@
     "require": {
         "wisembly/elephant.io": "~3.0",
         "devristo/phpws": "dev-master"
+    },
+    "autoload": {
+        "psr-4": {
+            "Pydio\\MQ\\Core\\": "./src"
+        }
     }
 }

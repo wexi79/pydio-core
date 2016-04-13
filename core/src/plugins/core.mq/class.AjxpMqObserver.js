@@ -62,7 +62,6 @@ Class.create("AjxpMqObserver", {
 
     initForRepoId:function(repoId){
         if (this.configs.get("WS_SERVER_ACTIVE")){
-
             if(this.ws) {
                 if(!repoId){
                     this.ws.on('close', function(){
@@ -72,7 +71,14 @@ Class.create("AjxpMqObserver", {
                     this.ws.close();
                 } else {
                     try{
-                        this.ws.emit("register", { my: repoId });
+                        if (typeof this.ws.emit === 'function') {
+                            this.ws.emit("register", { my: repoId })
+                        } else {
+                            this.ws.send(JSON.stringify({
+                                event: "register",
+                                my: repoId
+                            }))
+                        }
                     }catch(e){
                         if(console) console.log('Error while sending WebSocket message: '+ e.message);
                     }
@@ -81,17 +87,23 @@ Class.create("AjxpMqObserver", {
                 if(repoId){
                     var serverType = this.configs.get("WS_SERVER_TYPE");
 
-                    console.log(serverType);
+                    var onMessage = function(message) {
 
-                    var onMessage = function(message){
-                        console.log('HERE');
                         var xmlContent = new DOMParser().parseFromString(message, "text/xml");
                         PydioApi.getClient().parseXmlMessage(xmlContent);
                         ajaxplorer.notify("server_message", xmlContent);
                     }
 
                     var onConnect = function () {
-                        this.ws.emit("register", { my: repoId });
+
+                        if (typeof this.ws.emit === 'function') {
+                            this.ws.emit("register", { my: repoId })
+                        } else {
+                            this.ws.send(JSON.stringify({
+                                event: "register",
+                                my: repoId
+                            }))
+                        }
                     }
 
                     var onClose = function(event){
@@ -147,6 +159,7 @@ Class.create("AjxpMqObserver", {
                         this.initForRepoId(repoId);
                     }
 
+
                     if (serverType == 'npm') {
 
                         var url = "http"+(this.configs.get("WS_SERVER_SECURE")?"s":"")
@@ -171,10 +184,11 @@ Class.create("AjxpMqObserver", {
 
                         this.ws = new WebSocket(url);
 
-                        this.ws.emit = this.ws.send.bind(this);
-                        this.ws.onconnect = onConnect.bind(this);
+                        this.ws.onopen = onConnect.bind(this);
                         this.ws.onclose = onClose.bind(this);
-                        this.ws.onmessage = onMessage.bind(this);
+                        this.ws.onmessage = function (message) {
+                            onMessage(message.data);
+                        }.bind(this);
                         this.ws.ondisconnect = revertToPolling.bind(this);
                     }
                 }

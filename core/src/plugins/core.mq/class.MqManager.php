@@ -19,26 +19,14 @@
  * The latest code can be found at <http://pyd.io/>.
  */
 
+use Devristo\Phpws\Client\WebSocket;
+use Zend\Log\Logger;
+
 defined('AJXP_EXEC') or die( 'Access not allowed');
 
-// DL and install install vendor (composer?) https://github.com/Devristo/phpws
-require 'vendor/autoload.php';
-require 'vendor/phpws/websocket.client.php';
+require_once(__DIR__ . '/vendor/autoload.php');
 
-
-/**
- * Websocket JS Sample
- *
- * var websocket = new WebSocket("ws://serverURL:8090/echo");
-websocket.onmessage = function(event){console.log(event.data);};
- *
- *     new PeriodicalExecuter(function(pe){
-     var conn = new Connexion();
-     conn.setParameters($H({get_action:'client_consume_channel',channel:'nodes:0',client_id:'toto'}));
-     conn.onComplete = function(transport){PydioApi.getClient().parseXmlMessage(transport.responseXML);};
-     conn.sendAsync();
-     }, 5);
- *
+/*
  * @package AjaXplorer_Plugins
  * @subpackage Core
  *
@@ -47,14 +35,16 @@ class MqManager extends AJXP_Plugin
 {
 
     private $wsClient;
-
+    private $loop;
     /**
      * @var AJXP_MessageExchanger;
      */
     private $msgExchanger = false;
     private $useQueue = false ;
 
-
+    /**
+     * @param $options
+     */
     public function init($options)
     {
         parent::init($options);
@@ -66,9 +56,13 @@ class MqManager extends AJXP_Plugin
                 AuthService::$bufferedMessage = null;
             }
         } catch (Exception $e) {}
+
+        $this->exposeConfigInManifest("WS_SERVER_TYPE",  $this->pluginConf["WS_SERVER_TYPE"]["server"]);
     }
 
-
+    /**
+     * @param AJXP_Notification $notification
+     */
     public function sendToQueue(AJXP_Notification $notification)
     {
         if (!$this->useQueue) {
@@ -79,6 +73,11 @@ class MqManager extends AJXP_Plugin
         }
     }
 
+    /**
+     * @param $action
+     * @param $httpVars
+     * @param $fileVars
+     */
     public function consumeQueue($action, $httpVars, $fileVars)
     {
         if($action != "consume_notification_queue" || $this->msgExchanger === false) return;
@@ -100,6 +99,7 @@ class MqManager extends AJXP_Plugin
     {
         $content = "";$repo = "";$targetUserId=null; $nodePathes = array();
         $update = false;
+
         if ($newNode != null) {
             $repo = $newNode->getRepositoryId();
             $targetUserId = $newNode->getUser();
@@ -114,6 +114,7 @@ class MqManager extends AJXP_Plugin
             }
             $content = AJXP_XMLWriter::writeNodesDiff(array(($update?"UPDATE":"ADD") => $data));
         }
+
         if ($origNode != null && ! $update && !$copy) {
 
             $repo = $origNode->getRepositoryId();
@@ -122,14 +123,19 @@ class MqManager extends AJXP_Plugin
             $content = AJXP_XMLWriter::writeNodesDiff(array("REMOVE" => array($origNode->getPath())));
 
         }
+
         if (!empty($content) && $repo != "") {
-
             $this->sendInstantMessage($content, $repo, $targetUserId, null, $nodePathes);
-
         }
-
     }
 
+    /**
+     * @param $xmlContent
+     * @param $repositoryId
+     * @param null $targetUserId
+     * @param null $targetGroupPath
+     * @param array $nodePathes
+     */
     public function sendInstantMessage($xmlContent, $repositoryId, $targetUserId = null, $targetGroupPath = null, $nodePathes = array())
     {
         if ($repositoryId === AJXP_REPO_SCOPE_ALL) {
@@ -151,6 +157,7 @@ class MqManager extends AJXP_Plugin
         // Publish for pollers
         $message = new stdClass();
         $message->content = $xmlContent;
+
         if(isSet($userId)) {
             $message->userId = $userId;
         }
@@ -179,32 +186,75 @@ class MqManager extends AJXP_Plugin
                 $input["NODE_PATHES"] = $nodePathes;
             }
 
-            $url = rtrim("http://" . $configs["WS_SERVER_BIND_HOST"] . ":" . $configs["WS_SERVER_BIND_PORT"], '/');
+            // WS via NPM
+            switch ($configs["WS_SERVER_TYPE"]["server"]) {
+                case "npm":
+                    $url = rtrim("http://" . $configs["WS_SERVER_BIND_HOST"] . ":" . $configs["WS_SERVER_BIND_PORT"], '/');
 
-            $httpContext = [
-                'header' => [
-                    'Admin-Key: ' . $configs["WS_SERVER_ADMIN"]
-                ]
-            ];
+                    $httpContext = [
+                        'header' => [
+                            'Admin-Key: ' . $configs["WS_SERVER_ADMIN"]
+                        ]
+                    ];
 
-            try {
-                $client = new ElephantIO\Client(
-                    new ElephantIO\Engine\SocketIO\Version1X($url, ['context' => [
-                        'http' => $httpContext
-                    ]])
-                );
+                    $this->wsClient = new ElephantIO\Client(
+                        new ElephantIO\Engine\SocketIO\Version1X($url, ['context' => [
+                            'http' => $httpContext
+                        ]])
+                    );
 
-                $client->initialize();
+                    $this->wsClient->initialize();
+                    $this->wsClient->of('/private');
 
-                $client->of('/private');
-                $client->emit('message', [
-                    'repoId' => $repositoryId,
-                    'message' => json_encode($input)
-                ]);
+                    $this->wsClient->emit('message', [
+                        'repoId' => $repositoryId,
+                        'message' => json_encode($input)
+                    ]);
+                    $this->wsClient->close();
 
-                $client->close();
-            } catch (Exception $e) {
+                    break;
 
+                case "php":
+                default:
+                    $loop = \React\EventLoop\Factory::create();
+                    $logger = new \Zend\Log\Logger();
+
+                    if (AJXP_SERVER_DEBUG) {
+                        $writer = new Zend\Log\Writer\Stream("php://output");
+                    }else {
+                        $writer = new Zend\Log\Writer\Noop;
+                    }
+
+                    $logger->addWriter($writer);
+
+                    //little workaround,... it seems phpws cannot resolv ip for localhost ? :-)
+                    if($configs['WS_SERVER_BIND_HOST'] == 'localhost') $configs['WS_SERVER_BIND_HOST']  = '127.0.0.1';
+
+                    $url = "ws://" . $configs["WS_SERVER_BIND_HOST"] . ":" . $configs["WS_SERVER_BIND_PORT"] . '/private';
+
+                    $wsClient = new \Devristo\Phpws\Client\WebSocket($url, $loop, $logger);
+
+                    $msg = new \Devristo\Phpws\Messaging\WebSocketMessage();
+                    $msg->setData(json_encode([
+                        'repoId' => $repositoryId,
+                        'message' => $input
+                    ]));
+
+                    $wsClient->on("connect", function () use ($logger, $wsClient, $msg, $loop) {
+                        $wsClient->sendMessage($msg);
+                    });
+
+                    $wsClient->on("request", function ($handshake) use ($logger, $configs) {
+                        $handshake->getHeaders()->addHeaderLine("Admin-Key", $configs["WS_SERVER_ADMIN"]);
+                    });
+
+                    $wsClient->open();
+                    $loop->run();
+
+                    $this->wsClient = $wsClient;
+                    $this->loop = $loop;
+
+                    break;
             }
         }
     }
@@ -285,13 +335,14 @@ class MqManager extends AJXP_Plugin
         }
     }
 
+    /**
+     * @param $action
+     * @param $httpVars
+     * @param $fileVars
+     * @throws Exception
+     */
     public function wsAuthenticate($action, $httpVars, $fileVars)
     {
-        /*$this->logDebug("Entering wsAuthenticate");
-        $configs = $this->getConfigs();
-        if (!isSet($httpVars["key"]) || $httpVars["key"] != $configs["WS_SERVER_ADMIN"]) {
-            throw new Exception("Cannot authentify admin key");
-        }*/
         $user = AuthService::getLoggedUser();
         if ($user == null) {
             $this->logDebug("Error Authenticating through WebSocket (not logged)");
@@ -307,9 +358,13 @@ class MqManager extends AJXP_Plugin
         AJXP_XMLWriter::header();
         echo $xml;
         AJXP_XMLWriter::close();
-
     }
 
+    /**
+     * @param $params
+     * @return string
+     * @throws Exception
+     */
     public function switchWebSocketOn($params)
     {
         $wDir = $this->getPluginWorkDir(true);
@@ -326,6 +381,8 @@ class MqManager extends AJXP_Plugin
 
         $cmd = $this->getWebSocketStartCmd($params);
 
+        //return $cmd;
+
         $process = AJXP_Controller::runCommandInBackground($cmd, '/tmp/debug.out');
 
         // For the last command, (the one that starts the server), save the process pid
@@ -339,6 +396,11 @@ class MqManager extends AJXP_Plugin
     }
 
 
+    /**
+     * @param $params
+     * @return string
+     * @throws Exception
+     */
     public function switchWebSocketOff($params)
     {
         $wDir = $this->getPluginWorkDir(true);
@@ -355,9 +417,12 @@ class MqManager extends AJXP_Plugin
         return "SUCCESS: Killed WebSocket Server";
     }
 
+    /**
+     * @param $params
+     * @return string
+     */
     public function getWebSocketStartCmd($params)
     {
-
         // Default to saved config
         $params += $this->pluginConf;
 
@@ -382,6 +447,10 @@ class MqManager extends AJXP_Plugin
         return $cmd;
     }
 
+    /**
+     * @param $params
+     * @return string
+     */
     public function getWebSocketStatus($params)
     {
         $params += $this->pluginConf;
@@ -401,12 +470,18 @@ class MqManager extends AJXP_Plugin
                     break;
 
                 default:
-                    $url = rtrim("ws://" . $params["WS_SERVER_BIND_HOST"] . ":" . $params["WS_SERVER_BIND_PORT"], '/');
-
-                    $msg = WebSocketMessage::create('test');
-
-                    $client = new WebSocket($url);
-                    $socket = $client->open();
+                    $wDir = $this->getPluginWorkDir(true);
+                    $pidFile = $wDir.DIRECTORY_SEPARATOR."ws-pid";
+                    if (!file_exists($pidFile)) {
+                        return "OFF";
+                    } else {
+                        $pId = file_get_contents($pidFile);
+                        $unixProcess = new UnixProcess();
+                        $unixProcess->setPid($pId);
+                        $status = $unixProcess->status();
+                        if ($status) return "ON";
+                        else return "OFF";
+                    }
             }
         } catch (Exception $e) {
             return "OFF";
@@ -417,8 +492,14 @@ class MqManager extends AJXP_Plugin
         return "ON";
     }
 
+    /**
+     * @param $errNo
+     * @param $errStr
+     * @param $errFile
+     * @param $errLine
+     * @throws ErrorException
+     */
     function errHandle($errNo, $errStr, $errFile, $errLine) {
-
         $msg = "$errStr in $errFile on line $errLine";
         if ($errNo == E_NOTICE || $errNo == E_WARNING) {
             throw new ErrorException($msg, $errNo);
