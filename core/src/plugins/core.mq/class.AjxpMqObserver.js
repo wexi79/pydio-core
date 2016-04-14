@@ -88,7 +88,6 @@ Class.create("AjxpMqObserver", {
                     var serverType = this.configs.get("WS_SERVER_TYPE");
 
                     var onMessage = function(message) {
-
                         var xmlContent = new DOMParser().parseFromString(message, "text/xml");
                         PydioApi.getClient().parseXmlMessage(xmlContent);
                         ajaxplorer.notify("server_message", xmlContent);

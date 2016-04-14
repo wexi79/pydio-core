@@ -3,6 +3,8 @@ var xpath = require('xpath')
 var DOMParser = require('xmldom').DOMParser;
 
 function authenticate(socket, next) {
+
+
     var query, headers, jar, cookie;
 
     // Retrieving data

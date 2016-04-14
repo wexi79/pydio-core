@@ -17,7 +17,7 @@ app.use(express.static(__dirname + "/"))
 
 // Retrieving config
 var portForClients = process.env.PORT_CLIENT || 5000
-var portForServers = process.env.PORT_CLIENT || 5000
+var portForServers = process.env.PORT_SERVER || 5000
 var socketClients
 var socketServers
 var ioClients

@@ -141,11 +141,13 @@ class MqManager extends AJXP_Plugin
         if ($repositoryId === AJXP_REPO_SCOPE_ALL) {
             $userId = $targetUserId;
         } else {
-            $scope = ConfService::getRepositoryById($repositoryId)->securityScope();
-            if ($scope == "USER") {
-                if($targetUserId) $userId = $targetUserId;
-                else $userId = AuthService::getLoggedUser()->getId();
-            } else if ($scope == "GROUP") {
+            $repo = ConfService::getRepositoryById($repositoryId);
+            $scope = !empty($repo) ? $repo->securityScope() : null;
+            $user  = AuthService::getLoggedUser();
+
+            if ($scope == "USER" && (!empty($user))){
+                $userId = $user->getId();
+            } else if ($scope == "GROUP" && (!empty($user)) )  {
                 $gPath = AuthService::getLoggedUser()->getGroupPath();
             } else if (isSet($targetUserId)) {
                 $userId = $targetUserId;
@@ -186,10 +188,13 @@ class MqManager extends AJXP_Plugin
                 $input["NODE_PATHES"] = $nodePathes;
             }
 
+            // little workaround,... it seems phpws cannot resolv ip for localhost ? :-)
+            //if($configs['WS_SERVER_BIND_HOST'] == 'localhost') $configs['WS_SERVER_BIND_HOST']  = '127.0.0.1';
+
             // WS via NPM
             switch ($configs["WS_SERVER_TYPE"]["server"]) {
                 case "npm":
-                    $url = rtrim("http://" . $configs["WS_SERVER_BIND_HOST"] . ":" . $configs["WS_SERVER_BIND_PORT"], '/');
+                    $url = "http://" . $configs["WS_SERVER_BIND_HOST"] . ":" . $configs["WS_SERVER_BIND_PORT"];
 
                     $httpContext = [
                         'header' => [
@@ -203,8 +208,10 @@ class MqManager extends AJXP_Plugin
                         ]])
                     );
 
+                    $namespace = $configs["WS_SERVER_ADMIN_PATH"];
                     $this->wsClient->initialize();
-                    $this->wsClient->of('/private');
+
+                    $this->wsClient->of($namespace);
 
                     $this->wsClient->emit('message', [
                         'repoId' => $repositoryId,
@@ -214,7 +221,7 @@ class MqManager extends AJXP_Plugin
 
                     break;
 
-                case "php":
+                case "php-ws":
                 default:
                     $loop = \React\EventLoop\Factory::create();
                     $logger = new \Zend\Log\Logger();
@@ -227,10 +234,7 @@ class MqManager extends AJXP_Plugin
 
                     $logger->addWriter($writer);
 
-                    //little workaround,... it seems phpws cannot resolv ip for localhost ? :-)
-                    if($configs['WS_SERVER_BIND_HOST'] == 'localhost') $configs['WS_SERVER_BIND_HOST']  = '127.0.0.1';
-
-                    $url = "ws://" . $configs["WS_SERVER_BIND_HOST"] . ":" . $configs["WS_SERVER_BIND_PORT"] . '/private';
+                    $url = "ws://" . $configs["WS_SERVER_BIND_HOST"] . ":" . $configs["WS_SERVER_BIND_PORT"] . $configs["WS_SERVER_ADMIN_PATH"];
 
                     $wsClient = new \Devristo\Phpws\Client\WebSocket($url, $loop, $logger);
 
@@ -354,10 +358,15 @@ class MqManager extends AJXP_Plugin
             $groupString = "groupPath=\"".AJXP_Utils::xmlEntities($user->getGroupPath())."\"";
             $xml = str_replace("<user id=", "<user {$groupString} id=", $xml);
         }
+
         $this->logDebug("Authenticating user ".$user->id." through WebSocket");
         AJXP_XMLWriter::header();
         echo $xml;
         AJXP_XMLWriter::close();
+    }
+
+    public function test() {
+        $process = AJXP_Controller::runCommandInBackground('/usr/local/bin/npm start --prefix /Users/ghecquet/pydio.dev/pydio-core/core/src/plugins/core.mq --server-bind-port=5000 -server-port=5000', '/tmp/debug.out');
     }
 
     /**
@@ -382,7 +391,6 @@ class MqManager extends AJXP_Plugin
         $cmd = $this->getWebSocketStartCmd($params);
 
         //return $cmd;
-
         $process = AJXP_Controller::runCommandInBackground($cmd, '/tmp/debug.out');
 
         // For the last command, (the one that starts the server), save the process pid
@@ -426,7 +434,7 @@ class MqManager extends AJXP_Plugin
         // Default to saved config
         $params += $this->pluginConf;
 
-        $serverType = $params["WS_SERVER_TYPE"]['server'];
+        $serverType = !empty($params["server"]) ? $params["server"] : $params["WS_SERVER_TYPE"]['server'];
         $hostClient = $params["WS_SERVER_HOST"];
         $portClient = $params["WS_SERVER_PORT"];
         $portServer = $params["WS_SERVER_BIND_PORT"];
@@ -457,8 +465,10 @@ class MqManager extends AJXP_Plugin
 
         set_error_handler(array($this, 'errHandle'));
 
+        $serverType = !empty($params["server"]) ? $params["server"] : $params["WS_SERVER_TYPE"]['server'];
+
         try {
-            switch ($params["WS_SERVER_TYPE"]["server"]) {
+            switch ($serverType) {
                 case "npm" :
                     $url = rtrim("http://" . $params["WS_SERVER_BIND_HOST"] . ":" . $params["WS_SERVER_BIND_PORT"], '/');
 

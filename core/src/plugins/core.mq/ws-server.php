@@ -98,7 +98,7 @@ class PublicSocketHandler extends WebSocketUriHandler {
             case "register":
                 $regId = $data->my;
 
-                if (is_array($user->ajxpRepositories) && in_array($regId, $user->ajxpRepositories)) {
+                if (isset($user->ajxpRepositories) && is_array($user->ajxpRepositories) && in_array($regId, $user->ajxpRepositories)) {
                     $user->currentRepository = $regId;
                 }
 
@@ -127,9 +127,6 @@ class PrivateSocketHandler extends WebSocketUriHandler {
     }
 
     public function onConnect(WebSocketTransportInterface $user) {
-        $originHeader  = $user->getHandshakeRequest()->getHeader('Origin', null);
-        $host = $user->getHandshakeRequest()->getHeader('Host')->getFieldValue();
-
         $h = $user->getHandshakeRequest()->getHeaders()->toArray();
         if (array_key_exists('Admin-Key',$h) && $h['Admin-Key'] == $this->ADMIN_KEY) {
             return;
@@ -181,8 +178,6 @@ $logger->addWriter($writer);
 $server = new WebSocketServer("tcp://{$options["host"]}:{$options["port"]}", $loop, $logger);
 
 $router = new ClientRouter($server, $logger);
-
-
 
 $publicHandler = new PublicSocketHandler($options["host"]);
 $privateHandler = new PrivateSocketHandler($publicHandler, $logger, $ADMIN_KEY);

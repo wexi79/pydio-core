@@ -15,30 +15,30 @@
 
         <global_param group="CONF_MESSAGE[WebSocket Server]" description="CONF_MESSAGE[WebSocket server is running]" label="CONF_MESSAGE[WebSocket]" name="WS_SERVER_ACTIVE" type="boolean" expose="true"/>
 
-        <global_param group="CONF_MESSAGE[WebSocket Server]" description="CONF_MESSAGE[Websocket server type]" label="CONF_MESSAGE[WebSocket Server type]" name="WS_SERVER_TYPE" type="group_switch:server" mandatory="true" expose="true"/>
-        <global_param group_switch_name="server" group_switch_label="php-ws" group_switch_value="php-ws" name="server" type="hidden" label="" description="" mandatory="false" default="php-ws" expose="true"/>
-        <global_param group_switch_name="server" group_switch_label="npm" group_switch_value="npm" name="server" type="hidden" label="" description="" mandatory="false" default="npm" expose="true"/>
+        <global_param group="CONF_MESSAGE[WebSocket Server]" description="CONF_MESSAGE[WebSocket server type]" label="CONF_MESSAGE[WebSocket Server type]" name="WS_SERVER_TYPE" type="group_switch:server" mandatory="true" expose="true"/>
+        <global_param group="CONF_MESSAGE[WebSocket Server]" group_switch_name="server" group_switch_label="php-ws" group_switch_value="php-ws" name="server" type="hidden" label="" description="" mandatory="false" default="php-ws" expose="true"/>
+        <global_param group="CONF_MESSAGE[WebSocket Server]" group_switch_name="server" group_switch_label="npm" group_switch_value="npm" name="server" type="hidden" label="" description="" mandatory="false" default="npm" expose="true"/>
 
-        <global_param group_switch_name="server" group_switch_label="php-ws" group_switch_value="php-ws" group="CONF_MESSAGE[WebSocket Server]" type="button" name="SWITCH_WS_ON" choices="run_plugin_action:core.mq:switchWebSocketOn" label="CONF_MESSAGE[Run WebSocket Server]" description="CONF_MESSAGE[Switch the WS server ON]" mandatory="false"/>
-        <global_param group_switch_name="server" group_switch_label="php-ws" group_switch_value="php-ws" group="CONF_MESSAGE[WebSocket Server]" type="button" name="SWITCH_WS_OFF" choices="run_plugin_action:core.mq:switchWebSocketOff" label="CONF_MESSAGE[Stop WebSocket Server]" description="CONF_MESSAGE[Switch the WS server OFF]" mandatory="false"/>
-        <global_param group_switch_name="server" group_switch_label="php-ws" group_switch_value="php-ws" group="CONF_MESSAGE[WebSocket Server]" type="monitor" name="WS_PHP_STATUS" choices="run_plugin_action:core.mq:getWebSocketStatus" label="CONF_MESSAGE[WebSocket Server Status]" description="CONF_MESSAGE[Try to detect if the server is running correctly]" mandatory="false"/>
+        <global_param group="CONF_MESSAGE[WebSocket Server]" group_switch_name="server" group_switch_label="php-ws" group_switch_value="php-ws" type="button" name="SWITCH_WS_ON" choices="run_plugin_action:core.mq:switchWebSocketOn" label="CONF_MESSAGE[Run WebSocket Server]" description="CONF_MESSAGE[Switch the WS server ON]" mandatory="false"/>
+        <global_param group="CONF_MESSAGE[WebSocket Server]" group_switch_name="server" group_switch_label="php-ws" group_switch_value="php-ws" type="button" name="SWITCH_WS_OFF" choices="run_plugin_action:core.mq:switchWebSocketOff" label="CONF_MESSAGE[Stop WebSocket Server]" description="CONF_MESSAGE[Switch the WS server OFF]" mandatory="false"/>
+        <global_param group="CONF_MESSAGE[WebSocket Server]" group_switch_name="server" group_switch_label="php-ws" group_switch_value="php-ws" type="monitor" name="WS_PHP_STATUS" choices="run_plugin_action:core.mq:getWebSocketStatus" label="CONF_MESSAGE[WebSocket Server Status]" description="CONF_MESSAGE[Try to detect if the server is running correctly]" mandatory="false"/>
 
-        <global_param group_switch_name="server" group_switch_label="npm" group_switch_value="npm" type="monitor" name="SWITCH_WS_NPM_ON" choices="run_plugin_action:core.mq:getWebSocketStartCmd" label="CONF_MESSAGE[Run WebSocket Server]" description="CONF_MESSAGE[Switch the WS npm server ON]" mandatory="false"/>
-        <global_param group_switch_name="server" group_switch_label="npm" group_switch_value="npm" group="CONF_MESSAGE[WebSocket Server]" type="monitor" name="WS_NPM_STATUS" choices="run_plugin_action:core.mq:getWebSocketStatus" label="CONF_MESSAGE[WebSocket Server Status]" description="CONF_MESSAGE[Try to detect if the server is running correctly]" mandatory="false"/>
+        <!--<global_param group="CONF_MESSAGE[WebSocket Server]" group_switch_name="server" group_switch_label="npm" group_switch_value="npm" type="button" name="SWITCH_WS_TEST" choices="run_plugin_action:core.mq:test" label="CONF_MESSAGE[Run WebSocket Server]" description="CONF_MESSAGE[Switch the WS server ON]" mandatory="false"/>-->
 
-        <global_param group="CONF_MESSAGE[WebSocket Server]" description="CONF_MESSAGE[WebSocket client connect address]" label="CONF_MESSAGE[WS Client Address]" name="WS_SERVER_HOST" type="string" expose="true"/>
-        <global_param group="CONF_MESSAGE[WebSocket Server]" description="CONF_MESSAGE[WebSocket client connect port]" label="CONF_MESSAGE[WS Client Port]" name="WS_SERVER_PORT" type="string" expose="true" default="8090"/>
-        <global_param group="CONF_MESSAGE[WebSocket Server]" description="CONF_MESSAGE[WebSocket client secure connection]" label="CONF_MESSAGE[WS Client SSL]" name="WS_SERVER_SECURE" type="boolean" expose="true" default="false"/>
+        <global_param group="CONF_MESSAGE[WebSocket Server]" group_switch_name="server" group_switch_label="npm" group_switch_value="npm" type="monitor" name="SWITCH_WS_NPM_ON" choices="run_plugin_action:core.mq:getWebSocketStartCmd" label="CONF_MESSAGE[Run WebSocket Server]" description="CONF_MESSAGE[Switch the WS npm server ON]" mandatory="false"/>
+        <global_param group="CONF_MESSAGE[WebSocket Server]" group_switch_name="server" group_switch_label="npm" group_switch_value="npm" type="monitor" name="WS_NPM_STATUS" choices="run_plugin_action:core.mq:getWebSocketStatus" label="CONF_MESSAGE[WebSocket Server Status]" description="CONF_MESSAGE[Try to detect if the server is running correctly]" mandatory="false"/>
 
-        <global_param group="CONF_MESSAGE[WebSocket Server]" description="CONF_MESSAGE[WebSocket server bind address]" label="CONF_MESSAGE[WS Server Host]" name="WS_SERVER_BIND_HOST" type="string" expose="true"/>
-        <global_param group="CONF_MESSAGE[WebSocket Server]" description="CONF_MESSAGE[WebSocket server bind port]" label="CONF_MESSAGE[WS Server Port]" name="WS_SERVER_BIND_PORT" type="string" expose="true" default="8090"/>
-        <global_param group="CONF_MESSAGE[WebSocket Server]" description="CONF_MESSAGE[WebSocket handler path]" label="CONF_MESSAGE[WS Path]" name="WS_SERVER_PATH" type="string" expose="true"/>
-        <global_param group="CONF_MESSAGE[WebSocket Server]" description="CONF_MESSAGE[WebSocket admin key]" label="CONF_MESSAGE[WS Key]" name="WS_SERVER_ADMIN" type="string"/>
+        <global_param group="CONF_MESSAGE[WebSocket Server]" description="CONF_MESSAGE[WebSocket public connection host]" label="CONF_MESSAGE[WebSocket public connection host]" name="WS_SERVER_HOST" type="string" expose="true"/>
+        <global_param group="CONF_MESSAGE[WebSocket Server]" description="CONF_MESSAGE[WebSocket public connection port]" label="CONF_MESSAGE[WebSocket public connection port]" name="WS_SERVER_PORT" type="string" expose="true" default="8090"/>
+        <global_param group="CONF_MESSAGE[WebSocket Server]" description="CONF_MESSAGE[WebSocket public connection through SSL]" label="CONF_MESSAGE[WebSocket public connection through SSL]" name="WS_SERVER_SECURE" type="boolean" expose="true" default="false"/>
+        <global_param group="CONF_MESSAGE[WebSocket Server]" description="CONF_MESSAGE[WebSocket public handler path]" label="CONF_MESSAGE[WebSocket public handler path]" name="WS_SERVER_PATH" type="string" expose="true" default="/public"/>
 
+        <global_param group="CONF_MESSAGE[WebSocket Server]" description="CONF_MESSAGE[WebSocket private connection host]" label="CONF_MESSAGE[WebSocket private connection host]" name="WS_SERVER_BIND_HOST" type="string" expose="true"/>
+        <global_param group="CONF_MESSAGE[WebSocket Server]" description="CONF_MESSAGE[WebSocket private connection port]" label="CONF_MESSAGE[WebSocket private connection port]" name="WS_SERVER_BIND_PORT" type="string" expose="true" default="8090"/>
+        <global_param group="CONF_MESSAGE[WebSocket Server]" description="CONF_MESSAGE[WebSocket private handler path]" label="CONF_MESSAGE[WebSocket private handler path]" name="WS_SERVER_ADMIN_PATH" type="string" default="/private" />
+        <global_param group="CONF_MESSAGE[WebSocket Server]" description="CONF_MESSAGE[WebSocket private key]" label="CONF_MESSAGE[WebSocket private key]" name="WS_SERVER_ADMIN" type="string"/>
 
-        <!--
-        <global_param group="CONF_MESSAGE[WebSocket Server]" type="integer" name="POLLER_FREQUENCY" label="CONF_MESSAGE[Alternative poller frequency]" description="CONF_MESSAGE[If WebSocket server is not running, a polling mechanism will replace it. Fix the frequency of refresh, in seconds.]" mandatory="true" default="15" expose="true"/>
-        -->
+        <global_param group="CONF_MESSAGE[WebSocket Server]" description="CONF_MESSAGE[WebSocket private authorized host]" label="CONF_MESSAGE[WebSocket private authorized host]" name="WS_SERVER_ADMIN_AUTHORIZED_HOST" type="string" default="localhost, 127.0.0.1" />
     </server_settings>
 
     <class_definition classname="MqManager" filename="plugins/core.mq/class.MqManager.php"/>
