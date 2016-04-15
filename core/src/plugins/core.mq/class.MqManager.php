@@ -188,9 +188,6 @@ class MqManager extends AJXP_Plugin
                 $input["NODE_PATHES"] = $nodePathes;
             }
 
-            // little workaround,... it seems phpws cannot resolv ip for localhost ? :-)
-            //if($configs['WS_SERVER_BIND_HOST'] == 'localhost') $configs['WS_SERVER_BIND_HOST']  = '127.0.0.1';
-
             // WS via NPM
             switch ($configs["WS_SERVER_TYPE"]["server"]) {
                 case "npm":
@@ -223,6 +220,10 @@ class MqManager extends AJXP_Plugin
 
                 case "php-ws":
                 default:
+
+                    // little workaround,... it seems phpws cannot resolv ip for localhost ? :-)
+                    if($configs['WS_SERVER_BIND_HOST'] == 'localhost') $configs['WS_SERVER_BIND_HOST']  = '127.0.0.1';
+
                     $loop = \React\EventLoop\Factory::create();
                     $logger = new \Zend\Log\Logger();
 
@@ -365,10 +366,6 @@ class MqManager extends AJXP_Plugin
         AJXP_XMLWriter::close();
     }
 
-    public function test() {
-        $process = AJXP_Controller::runCommandInBackground('/usr/local/bin/npm start --prefix /Users/ghecquet/pydio.dev/pydio-core/core/src/plugins/core.mq --server-bind-port=5000 -server-port=5000', '/tmp/debug.out');
-    }
-
     /**
      * @param $params
      * @return string
@@ -434,21 +431,33 @@ class MqManager extends AJXP_Plugin
         // Default to saved config
         $params += $this->pluginConf;
 
-        $serverType = !empty($params["server"]) ? $params["server"] : $params["WS_SERVER_TYPE"]['server'];
-        $hostClient = $params["WS_SERVER_HOST"];
-        $portClient = $params["WS_SERVER_PORT"];
-        $portServer = $params["WS_SERVER_BIND_PORT"];
-        $path = escapeshellarg($params["WS_SERVER_PATH"]);
+        $serverType = !empty($params["WS_SERVER_TYPE"]['server']) ? $params["WS_SERVER_TYPE"]['server'] : $params["server"];
+
+        $publicPort = $params["WS_SERVER_PORT"];
+        $publicPath = escapeshellarg($params["WS_SERVER_PATH"]);
+
+        $privatePort = $params["WS_SERVER_BIND_PORT"];
+        $privatePath = escapeshellarg($params["WS_SERVER_ADMIN_PATH"]);
+
+        $adminKey = $params["WS_SERVER_ADMIN"];
 
         $prefix = AJXP_INSTALL_PATH.DIRECTORY_SEPARATOR.AJXP_PLUGINS_FOLDER.DIRECTORY_SEPARATOR."core.mq";
 
+        $args = "";
+        $args .= (isset($privatePort) ? " --private-port=" . $privatePort : "");
+        $args .= (isset($privatePath) ? " --private-path=" . $privatePath : "");
+        $args .= (isset($publicPort) ? " --public-port=" . $publicPort : "");
+        $args .= (isset($publicPath) ? " --public-path=" . $publicPath : "");
+        $args .= " --key=" . hash_hmac("md5", $adminKey, "Pydi0W3bS0ck3!");
+
         switch ($serverType) {
             case "npm" :
-                $cmd = ConfService::getCoreConf("CLI_NPM") . " start --prefix " . $prefix . " --server-bind-port=" . $portServer . " -server-port=" . $portClient;
+                $cmd = "nohup " . ConfService::getCoreConf("CLI_NPM") . " start --prefix " . $prefix . " " . $args;
 
                 break;
             default:
-                $cmd = ConfService::getCoreConf("CLI_PHP") . " " . $prefix . DIRECTORY_SEPARATOR . "ws-server.php -host=" . $hostClient . " -port=" . $portClient . " -path=" . $path;
+                $cmd = "nohup " . ConfService::getCoreConf("CLI_PHP") . " " . $prefix . DIRECTORY_SEPARATOR . "ws-server.php " . $args;
+
                 break;
         }
 
@@ -465,7 +474,7 @@ class MqManager extends AJXP_Plugin
 
         set_error_handler(array($this, 'errHandle'));
 
-        $serverType = !empty($params["server"]) ? $params["server"] : $params["WS_SERVER_TYPE"]['server'];
+        $serverType = !empty($params["WS_SERVER_TYPE"]['server']) ? $params["WS_SERVER_TYPE"]['server'] : $params["server"];
 
         try {
             switch ($serverType) {

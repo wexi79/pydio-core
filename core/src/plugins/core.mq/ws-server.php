@@ -15,14 +15,15 @@ use Zend\Log\Writer\Stream;
 require_once(__DIR__ . '/vendor/autoload.php');
 require_once(__DIR__ . '/../../core/classes/guzzle/vendor/autoload.php');
 
-$ADMIN_KEY = 'adminsecretkey';
+
+$DECRYPT_KEY = "Pydi0W3bS0ck3!";
 
 $optArgs = array();
 $options = array();
-$regex = '/^-(-?)([a-zA-z0-9_]*)=(.*)/';
+$regex = '/^--(-?)([a-zA-z0-9_-]*)=(.*)/';
 foreach ($argv as $key => $argument) {
     if (preg_match($regex, $argument, $matches)) {
-        if ($matches[1] == "-") {
+        if ($matches[1] == "--") {
             $optArgs[trim($matches[2])] = trim($matches[3]);
         } else {
             $options[trim($matches[2])] = trim($matches[3]);
@@ -30,12 +31,23 @@ foreach ($argv as $key => $argument) {
     }
 }
 
-if (!isSet($options["host"]) || !isSet($options["port"])) {
-    echo 'You must use the following command: \n > php ws-server.php -host=HOST_IP -port=HOST_PORT [-path=PATH]\n\n';
+// For backward compatibility, we still set the host and port
+$host        = isset($options["host"]) ? $options["host"] : "127.0.0.1";
+$port        = isset($options["port"]) ? $options["port"] : 5000;
+$path        = isset($options["path"]) ? $options["path"] : "/public";
+$publicPort  = isset($options["public-port"]) ? $options["public-port"] : $port;
+$publicPath  = isset($options["public-path"]) ? $options["public-path"] : $path;
+$privatePort = isset($options["private-port"]) ? $options["private-port"] : $port;
+$privatePath = isset($options["private-path"]) ? $options["private-path"] : "/private";
+$key         = isset($options["key"]) ? $options["key"] : hash_hmac("md5", 'adminsecretkey', $DECRYPT_KEY);
+
+
+if ($host == "localhost" || $host == "0.0.0.0") $host = "127.0.0.1";
+
+if (empty($host) || empty($publicPort) || empty($privatePort) || empty($publicPath) || empty($publicPort)) {
+    echo 'You must use the following command: \n > php ws-server.php [--key=KEY] [--host=HOST] [--port=PORT] [--path=PATH] [--public-port=PORT] [--public-path=PATH] [--private-port=PORT] [--private-path=PATH]\n\n';
     exit(0);
 }
-
-if ($options["host"] == "localhost") $options["host"] = "127.0.0.1";
 
 class PublicSocketHandler extends WebSocketUriHandler {
 
@@ -88,8 +100,6 @@ class PublicSocketHandler extends WebSocketUriHandler {
 
     public function onMessage(WebSocketTransportInterface $user, WebSocketMessageInterface $msg) {
 
-        $h = $user->getHandshakeRequest()->getHeaders()->toArray();
-
         $data = json_decode($msg->getData());
 
         if (!isset($data->event)) return;
@@ -118,50 +128,51 @@ class PrivateSocketHandler extends WebSocketUriHandler {
 
     private $publicHandler;
     private $ADMIN_KEY;
+    private $DECRYPT_KEY;
 
-    public function __construct($publicHandler, $logger, $ADMIN_KEY)
+    public function __construct($publicHandler, $logger, $ADMIN_KEY, $DECRYPT_KEY)
     {
         parent::__construct($logger);
         $this->publicHandler = $publicHandler;
         $this->ADMIN_KEY = $ADMIN_KEY;
+        $this->DECRYPT_KEY = $DECRYPT_KEY;
     }
 
     public function onConnect(WebSocketTransportInterface $user) {
         $h = $user->getHandshakeRequest()->getHeaders()->toArray();
-        if (array_key_exists('Admin-Key',$h) && $h['Admin-Key'] == $this->ADMIN_KEY) {
+
+        if (array_key_exists('Admin-Key',$h)  && hash_hmac("md5", $h['Admin-Key'], $this->DECRYPT_KEY) == $this->ADMIN_KEY) {
             return;
+        } else {
+            $user->close();
         }
     }
 
     public function onMessage(WebSocketTransportInterface $user, WebSocketMessageInterface $msg) {
 
-        $h = $user->getHandshakeRequest()->getHeaders()->toArray();
+        print_r('Private message ');
+        $data = json_decode($msg->getData());
 
-        if (array_key_exists('Admin-Key',$h) && $h['Admin-Key'] == $this->ADMIN_KEY) {
+        $repoId = $data->repoId;
+        $msg = $data->message;
 
-            $data = json_decode($msg->getData());
+        $userId = isset($msg->USER_ID) ? $msg->USER_ID : false;
+        $userGroupPath = isset($msg->GROUP_PATH) ? $msg->GROUP_PATH : false;
+        $content = $msg->CONTENT;
 
-            $repoId = $data->repoId;
-            $msg = $data->message;
+        print('Admin message dispatcher' . PHP_EOL);
 
-            $userId = isset($msg->USER_ID) ? $msg->USER_ID : false;
-            $userGroupPath = isset($msg->GROUP_PATH) ? $msg->GROUP_PATH : false;
-            $content = $msg->CONTENT;
+        foreach ($this->publicHandler->getConnections() as $conn) {
+            if($conn == $user) continue;
 
-            print('Admin message dispatcher' . PHP_EOL);
+            if ($repoId != 'AJXP_REPO_SCOPE_ALL' && (!isSet($conn->currentRepository) || $conn->currentRepository != $repoId)) continue;
 
-            foreach ($this->publicHandler->getConnections() as $conn) {
-                if($conn == $user) continue;
+            if ($userId != false && $conn->ajxpId != $userId) continue;
 
-                if ($repoId != 'AJXP_REPO_SCOPE_ALL' && (!isSet($conn->currentRepository) || $conn->currentRepository != $repoId)) continue;
+            if ($userGroupPath != false && (!isSet($conn->ajxpGroupPath) || $conn->ajxpGroupPath!=$userGroupPath)) continue;
 
-                if ($userId != false && $conn->ajxpId != $userId) continue;
-
-                if ($userGroupPath != false && (!isSet($conn->ajxpGroupPath) || $conn->ajxpGroupPath!=$userGroupPath)) continue;
-
-                print('Should dispatch to user '.$conn->ajxpId . PHP_EOL);
-                $conn->sendString($content);
-            }
+            print('Should dispatch to user '.$conn->ajxpId . PHP_EOL);
+            $conn->sendString($content);
         }
 
         // Closing connection at the end of the request
@@ -169,23 +180,40 @@ class PrivateSocketHandler extends WebSocketUriHandler {
     }
 }
 
+// Creating looper
 $loop = \React\EventLoop\Factory::create();
 
 $logger = new Logger();
 $writer = array_key_exists('verbose', $options) && isSet($options["verbose"]) ? new Stream("php://output") : new Noop;
 $logger->addWriter($writer);
 
-$server = new WebSocketServer("tcp://{$options["host"]}:{$options["port"]}", $loop, $logger);
+// Initialising ports
+if ($publicPort == $privatePort) {
+    $server = new WebSocketServer("tcp://{$host}:{$port}", $loop, $logger);
+    $router = new ClientRouter($server, $logger);
 
-$router = new ClientRouter($server, $logger);
+    // Bind the server
 
-$publicHandler = new PublicSocketHandler($options["host"]);
-$privateHandler = new PrivateSocketHandler($publicHandler, $logger, $ADMIN_KEY);
 
-$router->addRoute('#^/private$#i', $privateHandler);
-$router->addRoute('#^/public$#i', $publicHandler);
+    $publicRouter = $privateRouter = $router;
+} else {
+    $publicServer = new WebSocketServer("tcp://{$host}:{$publicPort}", $loop, $logger);
+    $privateServer = new WebSocketServer("tcp://{$host}:{$privatePort}", $loop, $logger);
 
-// Bind the server
+    $publicRouter = new ClientRouter($publicServer, $logger);
+    $privateRouter = new ClientRouter($privateServer, $logger);
+
+    // Bind the server
+    $publicServer->bind();
+    $privateServer->bind();
+}
+
+$publicHandler = new PublicSocketHandler($host);
+$privateHandler = new PrivateSocketHandler($publicHandler, $logger, $key, $DECRYPT_KEY);
+
+$privateRouter->addRoute("#^{$privatePath}$#i", $privateHandler);
+$publicRouter->addRoute("#^{$publicPath}$#i", $publicHandler);
+
 $server->bind();
 
 // Start the event loop

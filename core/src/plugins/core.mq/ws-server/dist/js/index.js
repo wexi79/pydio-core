@@ -1,6 +1,29 @@
-// Main requires
+/*
+ * Copyright 2007-2016 Charles du Jeu <charles (at) pydio.com>
+ * This file is part of Pydio.
+ *
+ * Pydio is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Pydio is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with Pydio.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * The latest code can be found at <http://pydio.com/>.
+ */
+
+// Setting process title
 "use strict";
 
+process.title = "pydio-websocket-server";
+
+// Main requires
 var http = require("http");
 var express = require("express");
 var cookieParser = require('socket.io-cookie-parser');
@@ -18,40 +41,42 @@ var app = express();
 app.use(express["static"](__dirname + "/"));
 
 // Retrieving config
-var portForClients = process.env.PORT_CLIENT || 5000;
-var portForServers = process.env.PORT_SERVER || 5000;
-var socketClients;
-var socketServers;
-var ioClients;
-var ioServers;
+var publicPort = process.env["npm_config_public_port"] || process.env["npm_package_configs_public_port"] || 5000;
+var privatePort = process.env["npm_config_private_port"] || process.env["npm_package_configs_private_port"] || 5000;
+var publicNS = process.env["npm_config_public_path"] || process.env["npm_package_configs_public_path"] || "/public";
+var privateNS = process.env["npm_config_private_path"] || process.env["npm_package_configs_private_path"] || "/private";
+var publicSocket;
+var privateSocket;
+var publicIO;
+var privateIO;
 
 // Initialising ports
-if (portForClients == portForServers) {
-    var socket = socketClients = socketServers = http.createServer(app);
-    var port = portForClients = portForServers;
+if (publicPort == privatePort) {
+    var socket = publicSocket = privateSocket = http.createServer(app);
+    var port = publicPort = privatePort;
 
     // Listening to ports
     socket.listen(port);
 
-    var io = ioClients = ioServers = require('socket.io')(socket);
+    var io = publicIO = privateIO = require('socket.io')(socket);
 } else {
-    socketClients = http.createServer(app);
-    socketServers = http.createServer(app);
+    publicSocket = http.createServer(app);
+    privateSocket = http.createServer(app);
 
     // Listening to ports
-    socketClients.listen(portForClients);
-    socketServers.listen(portForServers);
+    publicSocket.listen(publicPort);
+    privateSocket.listen(privatePort);
 
-    ioClients = require('socket.io')(socketClients);
-    ioServers = require('socket.io')(socketServers);
+    publicIO = require('socket.io')(publicSocket);
+    privateIO = require('socket.io')(privateSocket);
 }
 
 // Initialising client
-ioClients.of('/public').use(cookieParser()).use(clientAuthenticator).on('connection', function (socket) {
+publicIO.of(publicNS).use(cookieParser()).use(clientAuthenticator).on('connection', function (socket) {
     new ClientEndpoint(socket);
 });
 
 // Initialising servers
-ioServers.of('/private').use(serverAuthenticator).on('connection', function (socket) {
-    new ServerEndpoint(socket, ioClients.of('/public'));
+privateIO.of(privateNS).use(serverAuthenticator).on('connection', function (socket) {
+    new ServerEndpoint(socket, publicIO.of(publicNS));
 });

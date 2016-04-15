@@ -9,13 +9,21 @@
         "socket.io": "1.x",
         "socket.io-cookie-parser": "x",
         "xmldom": "x",
-        "xpath": "x"
+        "xpath": "x",
+        "crypto": "x"
     },
     "engines": {
         "node": "0.10.x"
     },
+    "configs": {
+        "public-port": 5000,
+        "private-port": 5000,
+        "public-path": "/public",
+        "private-path": "/private"
+    },
     "scripts": {
-        "start": "node ws-server/dist/js/index.js",
+        "start": "/usr/local/bin/node ws-server/dist/js/index.js",
+        "stop": "pkill -SIGINT -- pydio-websocket-server",
         "test": "echo \"Error: no test specified\" && exit 1"
     },
     "devDependencies": {
