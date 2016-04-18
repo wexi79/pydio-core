@@ -452,11 +452,11 @@ class MqManager extends AJXP_Plugin
 
         switch ($serverType) {
             case "npm" :
-                $cmd = "nohup " . ConfService::getCoreConf("CLI_NPM") . " start --prefix " . $prefix . " " . $args;
+                $cmd = ConfService::getCoreConf("CLI_NPM") . " start --prefix " . $prefix . " " . $args;
 
                 break;
             default:
-                $cmd = "nohup " . ConfService::getCoreConf("CLI_PHP") . " " . $prefix . DIRECTORY_SEPARATOR . "ws-server.php " . $args;
+                $cmd = ConfService::getCoreConf("CLI_PHP") . " " . $prefix . DIRECTORY_SEPARATOR . "ws-server.php " . $args;
 
                 break;
         }
