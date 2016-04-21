@@ -25,7 +25,9 @@ var DOMParser = require('xmldom').DOMParser;
 function authenticate(socket, next) {
 
 
-    var query, headers, jar, cookie;
+    var query, headers, jar, cookie, auth_hash, auth_token,
+        queryToken = '',
+        forwardedHeaders = {}
 
     // Retrieving data
     query = socket.request._query;
@@ -36,10 +38,26 @@ function authenticate(socket, next) {
     cookie = request.cookie('AjaXplorer=' + socket.request.cookies.AjaXplorer);
     jar.setCookie(cookie, headers.origin);
 
+    auth_hash = headers["PYDIO_AUTH_HASH"];
+    auth_token = headers["PYDIO_AUTH_TOKEN"];
+
+    if (query.token) {
+        queryToken = '&secure_token=' + query.token
+    } else if (auth_hash && auth_token) {
+        forwardedHeaders = {
+            'PYDIO_AUTH_HASH': auth_hash,
+            'PYDIO_AUTH_TOKEN': auth_token
+        }
+    } else {
+        console.log('No authentication token');
+        return
+    }
+
     // Sending authentication request
     request.get({
-        url: headers.origin + '?get_action=ws_authenticate&secure_token=' + query.token,
-        jar: jar
+        url: headers.origin + '?get_action=ws_authenticate' + queryToken,
+        jar: jar,
+        headers: forwardedHeaders
     }, function (err, httpResponse, body) {
 
         if (check(err, httpResponse)) {
