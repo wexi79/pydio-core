@@ -46,7 +46,7 @@ class ServerEndpoint {
             room = 'repository ' + message.REPO_ID
         }
 
-        console.log('Dispatching ' , message.length, 'bytes to ', room);
+        console.debug('Dispatching ' , message.length, 'bytes to ', room);
 
         if (room !== '') {
             clients

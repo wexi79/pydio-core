@@ -23,8 +23,6 @@ var xpath = require('xpath')
 var DOMParser = require('xmldom').DOMParser;
 
 function authenticate(socket, next) {
-
-
     var query, headers, jar, cookie, auth_hash, auth_token,
         queryToken = '',
         forwardedHeaders = {}
@@ -49,7 +47,7 @@ function authenticate(socket, next) {
             'PYDIO_AUTH_TOKEN': auth_token
         }
     } else {
-        console.log('No authentication token');
+        console.error('No authentication token');
         return
     }
 
@@ -59,7 +57,6 @@ function authenticate(socket, next) {
         jar: jar,
         headers: forwardedHeaders
     }, function (err, httpResponse, body) {
-
         if (check(err, httpResponse)) {
             Object.assign(socket.handshake, loadInfo(new DOMParser().parseFromString(body, "text/xml")));
 
