@@ -21,10 +21,6 @@
 const request = require('request');
 const xpath = require('xpath')
 const DOMParser = require('xmldom').DOMParser;
-const URLParser = require('url')
-const crypto = require('crypto');
-
-const nonce = 'Pydi0H4shS4lt';
 
 function authenticate(socket, next) {
     var query, headers, url, jar, cookie, auth_private, auth_hash, auth_token,
@@ -43,23 +39,18 @@ function authenticate(socket, next) {
     jar.setCookie(cookie, headers.origin);
 
     auth_token = headers["pydio_auth_token"] || query.auth_token;
-    auth_private = headers["pydio_auth_hash"] || query.auth_hash;
+    auth_hash = headers["pydio_auth_hash"] || query.auth_hash;
 
     if (query.token) {
         queryToken = '&secure_token=' + query.token
     } else if (auth_private && auth_token) {
-        var uri = URLParser.parse(url)['pathname'].replace(/^\/+/,"");
-
-        auth_hash = crypto
-            .createHmac('sha256', auth_token)
-            .update(uri + ":" + nonce + ":" + auth_private)
-            .digest('hex')
-
-        queryToken = '&auth_token=' + auth_token + '&auth_hash=' + nonce + ':' + auth_hash + '&XDEBUG_SESSION_START=phpstorm'
+        queryToken = '&auth_token=' + auth_token + '&auth_hash=' + auth_hash
     } else {
         console.error('No authentication token');
         return
     }
+
+    console.log(headers.origin + '?get_action=ws_authenticate' +  queryToken);
 
     // Sending authentication request
     request.get({
