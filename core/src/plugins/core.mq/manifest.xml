@@ -87,7 +87,7 @@
             </action>
             <action name="ws_authenticate" skipSecureToken="true">
                 <processing>
-                    <serverCallback methodName="wsAuthenticate" />
+                    <serverCallback restParams="/" methodName="wsAuthenticate" />
                 </processing>
             </action>
         </actions>
@@ -95,6 +95,17 @@
             <serverCallback methodName="publishNodeChange" hookName="node.change" defer="true"/>
             <serverCallback methodName="sendInstantMessage" hookName="msg.instant" />
             <serverCallback methodName="sendToQueue" hookName="msg.queue_notification" />
+
+            <!-- CORE hooks 
+            <serverCallback methodName="sendLoadRepositoriesMessage" hookName="workspace.after_create" defer="true" />
+            <serverCallback methodName="sendLoadRepositoriesMessage" hookName="workspace.after_update" defer="true" />
+            <serverCallback methodName="sendLoadRepositoriesMessage" hookName="workspace.after_delete" defer="true" />
+
+            <serverCallback methodName="sendLoadRepositoriesMessage" hookName="role.after_update" defer="true" />
+            <serverCallback methodName="sendLoadRepositoriesMessage" hookName="role.after_delete" defer="true" />
+
+            <serverCallback methodName="sendLoadSharesMessage" hookName="node.meta_change" defer="true" />
+            /END CORE hooks -->
         </hooks>
     </registry_contributions>
     <dependencies>
