@@ -55,20 +55,17 @@ function authenticate(socket, next) {
 
     if (query.token) {
         queryToken = '&secure_token=' + query.token;
-    } else if (auth_private && auth_token) {
+    } else if (auth_hash && auth_token) {
         queryToken = '&auth_token=' + auth_token + '&auth_hash=' + auth_hash;
     } else {
         console.error('No authentication token');
         return;
     }
 
-    console.log(headers.origin + '?get_action=ws_authenticate' + queryToken);
-
     // Sending authentication request
-    request.get({
-        url: headers.origin + '?get_action=ws_authenticate' + queryToken,
-        jar: jar,
-        headers: forwardedHeaders
+    request.post({
+        url: headers.origin + 'pydio/ws_authenticate' + queryToken,
+        jar: jar
     }, (function (err, httpResponse, body) {
         if (check(err, httpResponse)) {
             Object.assign(socket.handshake, loadInfo(new DOMParser().parseFromString(body, "text/xml")));
