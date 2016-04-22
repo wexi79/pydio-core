@@ -60,11 +60,11 @@ function authenticate(socket, next) {
     if (query.token) {
         queryToken = '&secure_token=' + query.token;
     } else if (auth_private && auth_token) {
-        var uri = URLParser.parse(url)['pathname'];
+        var uri = URLParser.parse(url)['pathname'].replace(/^\/+/, "");
 
         auth_hash = crypto.createHmac('sha256', auth_token).update(uri + ":" + nonce + ":" + auth_private).digest('hex');
 
-        queryToken = '&auth_token=' + auth_token + '&auth_hash' + auth_hash;
+        queryToken = '&auth_token=' + auth_token + '&auth_hash=' + nonce + ':' + auth_hash + '&XDEBUG_SESSION_START=phpstorm';
     } else {
         console.error('No authentication token');
         return;
@@ -87,6 +87,7 @@ function authenticate(socket, next) {
 }
 
 function loadInfo(xml) {
+
     var userNode = xpath.select1("/tree/user/@id", xml),
         userId = userNode && userNode.value,
         groupNode = xpath.select1("/tree/user/@groupPath", xml),
@@ -109,11 +110,15 @@ function loadInfo(xml) {
         }
     }
 
-    return {
+    var allowedRooms = {
         userId: userId,
         groupPath: groupPath,
         repositories: repositories
     };
+
+    console.log('Client allowed in following rooms ', allowedRooms);
+
+    return allowedRooms;
 }
 
 function check(err, httpResponse, body) {
