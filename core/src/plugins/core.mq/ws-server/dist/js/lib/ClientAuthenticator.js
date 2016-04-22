@@ -54,8 +54,8 @@ function authenticate(socket, next) {
     cookie = request.cookie('AjaXplorer=' + socket.request.cookies.AjaXplorer);
     jar.setCookie(cookie, headers.origin);
 
-    auth_token = headers["PYDIO_AUTH_TOKEN"] || query.auth_token;
-    auth_private = headers["PYDIO_AUTH_HASH"] || query.auth_hash;
+    auth_token = headers["pydio_auth_token"] || query.auth_token;
+    auth_private = headers["pydio_auth_hash"] || query.auth_hash;
 
     if (query.token) {
         queryToken = '&secure_token=' + query.token;
