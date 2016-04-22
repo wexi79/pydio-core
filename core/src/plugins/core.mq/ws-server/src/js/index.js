@@ -80,7 +80,7 @@ publicIO
     .use(cookieParser())
     .use(clientAuthenticator)
     .on('connection', function (socket) {
-        console.debug('Created Public Socket connection');
+        console.log('Created Public Socket connection');
         new ClientEndpoint(socket);
     })
 
@@ -89,6 +89,6 @@ privateIO
     .of(privateNS)
     .use(serverAuthenticator)
     .on('connection', function (socket) {
-        console.debug('Created Private Socket connection');
+        console.log('Created Private Socket connection');
         new ServerEndpoint(socket, publicIO.of(publicNS));
     })

@@ -18,12 +18,16 @@
  * The latest code can be found at <http://pydio.com/>.
  */
 
-var request = require('request');
-var xpath = require('xpath')
-var DOMParser = require('xmldom').DOMParser;
+const request = require('request');
+const xpath = require('xpath')
+const DOMParser = require('xmldom').DOMParser;
+const URLParser = require('url')
+const crypto = require('crypto');
+
+const nonce = 'Pydi0H4shS4lt';
 
 function authenticate(socket, next) {
-    var query, headers, jar, cookie, auth_hash, auth_token,
+    var query, headers, url, jar, cookie, auth_private, auth_hash, auth_token,
         queryToken = '',
         forwardedHeaders = {}
 
@@ -31,21 +35,27 @@ function authenticate(socket, next) {
     query = socket.request._query;
     headers = socket.request.headers;
 
+    url = headers.origin
+
     // Initing the cookie jar
     jar = request.jar();
     cookie = request.cookie('AjaXplorer=' + socket.request.cookies.AjaXplorer);
     jar.setCookie(cookie, headers.origin);
 
-    auth_hash = headers["PYDIO_AUTH_HASH"];
-    auth_token = headers["PYDIO_AUTH_TOKEN"];
+    auth_token = headers["PYDIO_AUTH_TOKEN"] || query.auth_token;
+    auth_private = headers["PYDIO_AUTH_HASH"] || query.auth_hash;
 
     if (query.token) {
         queryToken = '&secure_token=' + query.token
-    } else if (auth_hash && auth_token) {
-        forwardedHeaders = {
-            'PYDIO_AUTH_HASH': auth_hash,
-            'PYDIO_AUTH_TOKEN': auth_token
-        }
+    } else if (auth_private && auth_token) {
+        var uri = URLParser.parse(url)['pathname']
+
+        auth_hash = crypto
+            .createHmac('sha256', auth_token)
+            .update(uri + ":" + nonce + ":" + auth_private)
+            .digest('hex')
+
+        queryToken = '&auth_token=' + auth_token + '&auth_hash' + auth_hash
     } else {
         console.error('No authentication token');
         return

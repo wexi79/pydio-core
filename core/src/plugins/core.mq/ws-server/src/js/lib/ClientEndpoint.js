@@ -34,22 +34,22 @@ class ClientEndpoint {
 
         socket.on('register', this.register.bind(this));
 
-        scoket.on('disconnect', this.disconnect.bind(this));
+        socket.on('disconnect', this.disconnect.bind(this));
     }
 
     register(data, opts) {
         var repositoryId = data && data.my;
 
         if (repositoryId && this.repositories.indexOf(repositoryId) > -1) {
-            console.debug('Joining room : repository ' + repositoryId)
+            console.log('Joining room : repository ' + repositoryId)
             this.socket.join('repository ' + repositoryId);
         } else {
-            console.debug('Not allowed in room - ', repositoryId);
+            console.log('Not allowed in room - ', repositoryId);
         }
     }
 
     disconnect() {
-        console.debug('Client socket disconnected');
+        console.log('Client socket disconnected');
     }
 
 }

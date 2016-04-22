@@ -26,13 +26,18 @@ Object.defineProperty(exports, '__esModule', {
 var request = require('request');
 var xpath = require('xpath');
 var DOMParser = require('xmldom').DOMParser;
+var URLParser = require('url');
+var crypto = require('crypto');
+
+var nonce = 'Pydi0H4shS4lt';
 
 function authenticate(socket, next) {
-
     var query,
         headers,
+        url,
         jar,
         cookie,
+        auth_private,
         auth_hash,
         auth_token,
         queryToken = '',
@@ -42,23 +47,26 @@ function authenticate(socket, next) {
     query = socket.request._query;
     headers = socket.request.headers;
 
+    url = headers.origin;
+
     // Initing the cookie jar
     jar = request.jar();
     cookie = request.cookie('AjaXplorer=' + socket.request.cookies.AjaXplorer);
     jar.setCookie(cookie, headers.origin);
 
-    auth_hash = headers["PYDIO_AUTH_HASH"];
-    auth_token = headers["PYDIO_AUTH_TOKEN"];
+    auth_token = headers["PYDIO_AUTH_TOKEN"] || query.auth_token;
+    auth_private = headers["PYDIO_AUTH_HASH"] || query.auth_hash;
 
     if (query.token) {
         queryToken = '&secure_token=' + query.token;
-    } else if (auth_hash && auth_token) {
-        forwardedHeaders = {
-            'PYDIO_AUTH_HASH': auth_hash,
-            'PYDIO_AUTH_TOKEN': auth_token
-        };
+    } else if (auth_private && auth_token) {
+        var uri = URLParser.parse(url)['pathname'];
+
+        auth_hash = crypto.createHmac('sha256', auth_token).update(uri + ":" + nonce + ":" + auth_private).digest('hex');
+
+        queryToken = '&auth_token=' + auth_token + '&auth_hash' + auth_hash;
     } else {
-        console.log('No authentication token');
+        console.error('No authentication token');
         return;
     }
 
@@ -68,7 +76,6 @@ function authenticate(socket, next) {
         jar: jar,
         headers: forwardedHeaders
     }, (function (err, httpResponse, body) {
-
         if (check(err, httpResponse)) {
             Object.assign(socket.handshake, loadInfo(new DOMParser().parseFromString(body, "text/xml")));
 

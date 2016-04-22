@@ -43,16 +43,26 @@ var ClientEndpoint = (function () {
         socket.join('group ' + this.groupPath);
 
         socket.on('register', this.register.bind(this));
+
+        socket.on('disconnect', this.disconnect.bind(this));
     }
 
     _createClass(ClientEndpoint, [{
         key: 'register',
         value: function register(data, opts) {
-            var repositoryId = data.my;
+            var repositoryId = data && data.my;
 
-            if (this.repositories.indexOf(repositoryId) > -1) {
+            if (repositoryId && this.repositories.indexOf(repositoryId) > -1) {
+                console.log('Joining room : repository ' + repositoryId);
                 this.socket.join('repository ' + repositoryId);
+            } else {
+                console.log('Not allowed in room - ', repositoryId);
             }
+        }
+    }, {
+        key: 'disconnect',
+        value: function disconnect() {
+            console.log('Client socket disconnected');
         }
     }]);
 

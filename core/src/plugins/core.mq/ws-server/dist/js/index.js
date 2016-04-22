@@ -59,6 +59,8 @@ if (publicPort == privatePort) {
     socket.listen(port);
 
     var io = publicIO = privateIO = require('socket.io')(socket);
+
+    console.log('Server listening to port ' + port + ' for public and private connections');
 } else {
     publicSocket = http.createServer(app);
     privateSocket = http.createServer(app);
@@ -69,14 +71,19 @@ if (publicPort == privatePort) {
 
     publicIO = require('socket.io')(publicSocket);
     privateIO = require('socket.io')(privateSocket);
+
+    console.log('Server listening to port ' + publicPort + ' for public connections');
+    console.log('Server listening to port ' + privatePort + ' for private connections');
 }
 
 // Initialising client
 publicIO.of(publicNS).use(cookieParser()).use(clientAuthenticator).on('connection', function (socket) {
+    console.log('Created Public Socket connection');
     new ClientEndpoint(socket);
 });
 
 // Initialising servers
 privateIO.of(privateNS).use(serverAuthenticator).on('connection', function (socket) {
+    console.log('Created Private Socket connection');
     new ServerEndpoint(socket, publicIO.of(publicNS));
 });
