@@ -18,6 +18,8 @@
  * The latest code can be found at <http://pydio.com/>.
  */
 
+import "babel-polyfill";
+
 // Setting process title
 process.title = "pydio-websocket-server";
 

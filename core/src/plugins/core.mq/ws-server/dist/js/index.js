@@ -18,9 +18,11 @@
  * The latest code can be found at <http://pydio.com/>.
  */
 
-// Setting process title
 "use strict";
 
+require("babel-polyfill");
+
+// Setting process title
 process.title = "pydio-websocket-server";
 
 // Main requires
