@@ -36,14 +36,12 @@ function authenticate(socket, next) {
         auth_private,
         auth_hash,
         auth_token,
-        queryToken = '',
+        data = {},
         forwardedHeaders = {};
 
     // Retrieving data
     query = socket.request._query;
     headers = socket.request.headers;
-
-    url = headers.origin;
 
     // Initing the cookie jar
     jar = request.jar();
@@ -54,25 +52,37 @@ function authenticate(socket, next) {
     auth_hash = headers["pydio_auth_hash"] || query.auth_hash;
 
     if (query.token) {
-        queryToken = '&secure_token=' + query.token;
+        // The user comes from the website
+        url = headers.origin.replace(/\/$/i, '') + '/index.php?get_action=ws_authenticate';
+        data = {
+            'secure_token': query.token
+        };
     } else if (auth_hash && auth_token) {
-        queryToken = '&auth_token=' + auth_token + '&auth_hash=' + auth_hash;
+        // The user comes from the API
+        url = headers.origin.replace(/\/$/i, '') + '/pydio/ws_authenticate';
+        data = {
+            'auth_token': auth_token,
+            'auth_hash': auth_hash
+        };
     } else {
         console.error('No authentication token');
         return;
     }
 
+    console.log(url, data);
+
     // Sending authentication request
     request.post({
-        url: headers.origin + 'pydio/ws_authenticate' + queryToken,
-        jar: jar
+        url: url,
+        jar: jar,
+        form: data
     }, (function (err, httpResponse, body) {
         if (check(err, httpResponse)) {
             Object.assign(socket.handshake, loadInfo(new DOMParser().parseFromString(body, "text/xml")));
 
             next();
         } else {
-            console.error('Failed to authenticate');
+            console.error('Failed to authenticate ', err, httpResponse);
         }
     }).bind(this));
 }
