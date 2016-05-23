@@ -87,7 +87,7 @@
             </action>
             <action name="ws_authenticate" skipSecureToken="true">
                 <processing>
-                    <serverCallback restParams="/" methodName="wsAuthenticate" />
+                    <serverCallback methodName="wsAuthenticate" restParams="/" />
                 </processing>
             </action>
         </actions>

@@ -129,6 +129,33 @@ class MqManager extends AJXP_Plugin
         }
     }
 
+
+    /**
+     * @param $object
+     */
+    public function sendLoadRepositoriesMessage($object) {
+
+        $userId = $groupPath = null;
+
+        if ($object instanceof AJXP_Role) {
+            $userId = $object->getUserId();
+            $groupPath = $object->getGroupPath();
+        } else if ($object instanceof Repository) {
+            $userId = $object->getOwner();
+            $groupPath = $object->getGroupPath();
+        }
+
+        AJXP_Controller::applyHook("msg.instant", array(AJXP_XMLWriter::reloadRepositoryList(false), AJXP_REPO_SCOPE_ALL, $userId, $groupPath, []));
+    }
+
+    /**
+     * @param AJXP_Node $node
+     */
+    public function sendLoadSharesMessage($node) {
+        AJXP_Controller::applyHook("msg.instant", array("<reload_shared_elements/>", $node->getRepositoryId()));
+    }
+
+
     /**
      * @param $xmlContent
      * @param $repositoryId
@@ -199,22 +226,26 @@ class MqManager extends AJXP_Plugin
                         ]
                     ];
 
-                    $this->wsClient = new ElephantIO\Client(
-                        new ElephantIO\Engine\SocketIO\Version1X($url, ['context' => [
-                            'http' => $httpContext
-                        ]])
-                    );
+                    try {
+                        $this->wsClient = new ElephantIO\Client(
+                            new ElephantIO\Engine\SocketIO\Version1X($url, ['context' => [
+                                'http' => $httpContext
+                            ]])
+                        );
 
-                    $namespace = $configs["WS_SERVER_ADMIN_PATH"];
-                    $this->wsClient->initialize();
+                        $namespace = $configs["WS_SERVER_ADMIN_PATH"];
+                        $this->wsClient->initialize();
 
-                    $this->wsClient->of($namespace);
+                        $this->wsClient->of($namespace);
 
-                    $this->wsClient->emit('message', [
-                        'repoId' => $repositoryId,
-                        'message' => json_encode($input)
-                    ]);
-                    $this->wsClient->close();
+                        $this->wsClient->emit('message', [
+                            'repoId' => $repositoryId,
+                            'message' => json_encode($input)
+                        ]);
+                        $this->wsClient->close();
+                    } catch (\Exception $e) {
+                        // continue
+                    }
 
                     break;
 

@@ -57,8 +57,6 @@ function authenticate(socket, next) {
         return
     }
 
-    console.log(url, data);
-
     // Sending authentication request
     request.post({
         url: url,
