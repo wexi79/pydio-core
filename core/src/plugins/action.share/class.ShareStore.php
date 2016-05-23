@@ -398,99 +398,120 @@ class ShareStore {
     public function deleteShare($type, $element, $keepRepository = false, $ignoreRepoNotFound = false, $ajxpNode = null)
     {
         $mess = ConfService::getMessages();
+
         AJXP_Logger::debug(__CLASS__, __FILE__, "Deleting shared element ".$type."-".$element);
 
-        if ($type == "repository") {
-            if(strpos($element, "repo-") === 0) $element = str_replace("repo-", "", $element);
-            $repo = ConfService::getRepositoryById($element);
-            $share = $this->loadShare($element);
-            if($repo == null) {
-                // Maybe a share has
-                if(is_array($share) && isSet($share["REPOSITORY"])){
-                    $repo = ConfService::getRepositoryById($share["REPOSITORY"]);
+        $hasRoleBound = false;
+
+        switch ($type) {
+            case "repository" :
+                if(strpos($element, "repo-") === 0) {
+                    $hash = str_replace("repo-", "", $element);
+                } else {
+                    $hash = $element;
                 }
-                if($repo == null && !$ignoreRepoNotFound){
-                    throw new Exception(str_replace('%s', 'Cannot find associated repository', $mess["share_center.219"]));
-                }
-            }
-            if($repo != null){
-                $this->testUserCanEditShare($repo->getOwner(), $repo->options);
-                $res = ConfService::deleteRepository($element);
-                if ($res == -1) {
-                    throw new Exception($mess[427]);
-                }
-            }
-            if($ajxpNode != null){
-                $this->getMetaManager()->removeShareFromMeta($ajxpNode, $element);
-            }
-            if($this->sqlSupported){
-                if(isSet($share) && count($share)){
-                    $this->confStorage->simpleStoreClear("share", $element);
-                }else{
-                    $shares = $this->findSharesForRepo($element);
-                    if(count($shares)){
-                        $keys = array_keys($shares);
-                        $this->confStorage->simpleStoreClear("share", $keys[0]);
-                        if($ajxpNode != null){
-                            $this->getMetaManager()->removeShareFromMeta($ajxpNode, $keys[0]);
-                        }
-                    }
-                }
-            }
-        } else if ($type == "minisite") {
-            $minisiteData = $this->loadShare($element);
-            $repoId = $minisiteData["REPOSITORY"];
-            $repo = ConfService::getRepositoryById($repoId);
-            if ($repo == null) {
-                if(!$ignoreRepoNotFound) {
-                    throw new Exception(str_replace('%s', 'Cannot find associated repository', $mess["share_center.219"]));
-                }
-            }else{
-                $this->testUserCanEditShare($repo->getOwner(), $repo->options);
-            }
-            if(!$keepRepository){
+
+                break;
+
+            case "minisite" :
+                $hasRoleBound = true;
+
+            case "file" :
+                $hash = $element;
+                break;
+
+            case "user" :
+                $this->testUserCanEditShare($element, array());
+                AuthService::deleteUser($element);
+
+                return false;
+
+            default:
+                throw new Exception('Wrong type for share element');
+        }
+
+        if(!isset($hash)) return false;
+
+        // Load share from hash and let see
+        $shareData = $this->loadShare($hash);
+        $repo = ConfService::getRepositoryById($hash);
+
+        // Maybe a share has
+        if (is_array($shareData) && isset($shareData["REPOSITORY"]) && empty($repo)) {
+            $repo = ConfService::getRepositoryById($shareData["REPOSITORY"]);
+        }
+
+        if (empty($repo) && !$ignoreRepoNotFound) {
+            throw new Exception(str_replace('%s', 'Cannot find associated repository', $mess["share_center.219"]));
+        }
+
+        if (!empty($repo)) {
+            $repoId = $repo->getId();
+
+            $this->testUserCanEditShare($repo->getOwner(), $repo->options);
+
+            if (!$keepRepository) {
                 $res = ConfService::deleteRepository($repoId);
-                if ($res == -1) {
-                    throw new Exception($mess[427]);
-                }
-            }
-            // Silently delete corresponding role if it exists
-            AuthService::deleteRole("AJXP_SHARED-".$repoId);
-            // If guest user created, remove it now.
-            if (isSet($minisiteData["PRELOG_USER"]) && AuthService::userExists($minisiteData["PRELOG_USER"])) {
-                AuthService::deleteUser($minisiteData["PRELOG_USER"]);
-            }
-            // If guest user created, remove it now.
-            if (isSet($minisiteData["PRESET_LOGIN"]) && AuthService::userExists($minisiteData["PRESET_LOGIN"])) {
-                AuthService::deleteUser($minisiteData["PRESET_LOGIN"]);
-            }
-            if(isSet($minisiteData["PUBLICLET_PATH"]) && is_file($minisiteData["PUBLICLET_PATH"])){
-                unlink($minisiteData["PUBLICLET_PATH"]);
-            }else if($this->sqlSupported){
-                $this->confStorage->simpleStoreClear("share", $element);
-            }
-            if($ajxpNode !== null){
-                $this->getMetaManager()->removeShareFromMeta($ajxpNode, $element);
-                if(!$keepRepository){
+
+                if(!empty($ajxpNode)){
                     $this->getMetaManager()->removeShareFromMeta($ajxpNode, $repoId);
                 }
-            }
-        } else if ($type == "user") {
-            $this->testUserCanEditShare($element, array());
-            AuthService::deleteUser($element);
-        } else if ($type == "file") {
-            $publicletData = $this->loadShare($element);
-            if (isSet($publicletData["OWNER_ID"]) && $this->testUserCanEditShare($publicletData["OWNER_ID"], $publicletData)) {
-                PublicletCounter::delete($element);
-                if(isSet($publicletData["PUBLICLET_PATH"]) && is_file($publicletData["PUBLICLET_PATH"])){
-                    unlink($publicletData["PUBLICLET_PATH"]);
-                }else if($this->sqlSupported){
-                    $this->confStorage->simpleStoreClear("share", $element);
+
+                if ($res == -1) {
+                    throw new Exception($mess[427]);
                 }
+            }
+
+            // Silently delete corresponding role if it exists
+            if ($hasRoleBound) {
+                AuthService::deleteRole("AJXP_SHARED-" . $repoId);
+            }
+        }
+
+        // If guest user created, remove it now.
+        if (isset($shareData["PRELOG_USER"]) && AuthService::userExists($shareData["PRELOG_USER"])) {
+            AuthService::deleteUser($shareData["PRELOG_USER"]);
+        }
+
+        // If guest user created, remove it now.
+        if (isset($shareData["PRESET_LOGIN"]) && AuthService::userExists($shareData["PRESET_LOGIN"])) {
+            AuthService::deleteUser($shareData["PRESET_LOGIN"]);
+        }
+
+        if (isset($shareData["OWNER_ID"])) {
+            if ($this->testUserCanEditShare($shareData["OWNER_ID"], $shareData)) {
+                PublicletCounter::delete($element);
             } else {
                 throw new Exception($mess["share_center.160"]);
             }
         }
+
+        if(isset($shareData["PUBLICLET_PATH"]) && is_file($shareData["PUBLICLET_PATH"])) {
+            unlink($shareData["PUBLICLET_PATH"]);
+        }
+
+        if($this->sqlSupported) {
+            if(isset($shareData) && count($shareData)) {
+                $this->confStorage->simpleStoreClear("share", $hash);
+            } else {
+                $shares = $this->findSharesForRepo($hash);
+
+                if(count($shares)){
+                    $keys = array_keys($shares);
+                    $this->confStorage->simpleStoreClear("share", $keys[0]);
+
+                    // Should it not be outside sqlSupported ??
+                    if($ajxpNode != null){
+                        $this->getMetaManager()->removeShareFromMeta($ajxpNode, $keys[0]);
+                    }
+                }
+            }
+        }
+
+        if(!empty($ajxpNode)){
+            $this->getMetaManager()->removeShareFromMeta($ajxpNode, $hash);
+        }
+
         return true;
     }
 

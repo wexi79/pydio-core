@@ -548,8 +548,8 @@ class ShareCenter extends AJXP_Plugin
                     }
                 }
 
-
                 AJXP_Controller::applyHook("msg.instant", array("<reload_shared_elements/>", ConfService::getRepository()->getId()));
+                
                 /*
                  * Send IM to inform that node has been shared or unshared.
                  * Should be done only if share scope is public.
@@ -692,14 +692,12 @@ class ShareCenter extends AJXP_Plugin
                     $sanitizedHash = AJXP_Utils::sanitize($httpVars["hash"], AJXP_SANITIZE_ALPHANUM);
                     $ajxpNode = ($userSelection->isEmpty() ? null : $userSelection->getUniqueNode());
                     $result = $this->getShareStore()->deleteShare($httpVars["element_type"], $sanitizedHash, false, false, $ajxpNode);
-                    if($result !== false){
+                    if($result !== false) {
                         AJXP_XMLWriter::header();
                         AJXP_XMLWriter::sendMessage($mess["share_center.216"], null);
                         AJXP_XMLWriter::close();
                     }
-
                 }else{
-
                     $userSelection = new UserSelection($this->repository, $httpVars);
                     $ajxpNode = $userSelection->getUniqueNode();
                     $shares = array();
@@ -715,7 +713,7 @@ class ShareCenter extends AJXP_Plugin
                         foreach($shares as $shareId =>  $share){
                             $t = isSet($share["type"]) ? $share["type"] : "file";
                             try{
-                                $result = $this->getShareStore()->deleteShare($t, $shareId, false, true);
+                                $result = $this->deleteShare($t, $shareId, false, true);
                             }catch(Exception $e){
                                 if($e->getMessage() == "repo-not-found"){
                                     $result = true;
@@ -1479,6 +1477,32 @@ class ShareCenter extends AJXP_Plugin
         return $newRepo;
     }
 
+    public function deleteShare($type, $element, $keepRepository = false, $ignoreRepoNotFound = false, $ajxpNode = null) {
+
+        switch($type) {
+            case "repository" :
+                if(strpos($element, "repo-") === 0) $element = str_replace("repo-", "", $element);
+                $repo = ConfService::getRepositoryById($element);
+                break;
+            case "minisite" :
+                $minisiteData = $this->getShareStore()->loadShare($element);
+                $repoId = $minisiteData["REPOSITORY"];
+                $repo = ConfService::getRepositoryById($repoId);
+                break;
+
+            default:
+                break;
+        }
+
+        if (isset($repo)) {
+            $this->getRightsManager()->unregisterRemovedUsers($repo->getId(), [], []);
+        }
+
+        $this->getShareStore()->deleteShare($type, $element, $keepRepository, $ignoreRepoNotFound, $ajxpNode);
+        
+        return true;
+    }
+
     /**
      * @param array $linkData
      * @param array $hiddenUserEntries
@@ -1605,6 +1629,7 @@ class ShareCenter extends AJXP_Plugin
             }
 
         }
+
         $shareObjects[] = $newRepo;
         return $shareObjects;
 

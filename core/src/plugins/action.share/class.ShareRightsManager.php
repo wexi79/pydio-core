@@ -423,8 +423,10 @@ class ShareRightsManager
                 $minisiteRole = $this->createRoleForMinisite($childRepoId, $userEntry["DISABLE_DOWNLOAD"], $isUpdate);
                 if($minisiteRole != null){
                     $userObject->addRole($minisiteRole);
+                    $userObject->save("superuser");
                 }
             }
+
             // ADD "my shared files" REPO OTHERWISE SOME USER CANNOT ACCESS
             if( !isSet($userEntry["HIDDEN"]) && $childRepository->hasContentFilter()){
                 $inboxRepo = ConfService::getRepositoryById("inbox");
@@ -434,7 +436,7 @@ class ShareRightsManager
                 }
             }
 
-            $userObject->save("superuser");
+            AuthService::updateRole($userObject->personalRole);
         }
 
         foreach ($groups as $group => $groupEntry) {
@@ -469,7 +471,10 @@ class ShareRightsManager
                 if (AuthService::userExists($user)) {
                     $userObject = $confDriver->createUserObject($user);
                     $userObject->personalRole->setAcl($repoId, "");
-                    $userObject->save("superuser");
+
+                    AuthService::updateRole($userObject->personalRole);
+
+                    // $userObject->save("superuser");
                 }
                 if($this->watcher !== false && $watcherNode !== null){
                     $this->watcher->removeWatchFromFolder(
