@@ -77,6 +77,7 @@ class AJXP_Controller
         }
         $action = $actions->item(0);
         $restPathList = $xPath->query("processing/serverCallback/@restParams", $action);
+
         if (!$restPathList->length) {
             self::$lastActionNeedsAuth = true;
             return false;

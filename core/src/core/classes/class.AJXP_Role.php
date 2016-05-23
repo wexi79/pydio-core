@@ -98,15 +98,17 @@ class AJXP_Role implements AjxpGroupPathProvider
         }
     }
 
-    public function isGroupRole()
-    {
+    public function isGroupRole() {
         return strpos($this->roleId, "AJXP_GRP_") === 0;
     }
-    public function isUserRole()
-    {
+
+    public function isUserRole() {
         return strpos($this->roleId, "AJXP_USER_") === 0;
     }
 
+    public function getUserId() {
+        return ltrim($this->roleId, "AJXP_USER_/");
+    }
 
     /**
      * Whether this role can read the given repo
@@ -145,6 +147,7 @@ class AJXP_Role implements AjxpGroupPathProvider
         } else {
             $this->acls[$repositoryId] = $rightString;
         }
+
         return;
     }
     /**

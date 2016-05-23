@@ -1146,8 +1146,10 @@ class AuthService
      */
     public static function updateRole($roleObject, $userObject = null)
     {
+        AJXP_Controller::applyHook("role.before_update", array($roleObject));
         ConfService::getConfStorageImpl()->updateRole($roleObject, $userObject);
         CacheService::deleteAll();
+        AJXP_Controller::applyHook("role.after_update", array($roleObject));
     }
     /**
      * Delete a role by its id
@@ -1157,8 +1159,13 @@ class AuthService
      */
     public static function deleteRole($roleId)
     {
+        $roleObject = self::getRole($roleId);
+        AJXP_Controller::applyHook("role.before_delete", array($roleObject));
+        
         ConfService::getConfStorageImpl()->deleteRole($roleId);
         CacheService::deleteAll();
+
+        AJXP_Controller::applyHook("role.after_delete", array($roleObject));
     }
 
     public static function filterPluginParameters($pluginId, $params, $repoId = null)
