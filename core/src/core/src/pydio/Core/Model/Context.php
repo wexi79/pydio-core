@@ -33,22 +33,22 @@ class Context implements ContextInterface
     /**
      * @var string
      */
-    private $userId;
+    protected $userId;
 
     /**
      * @var
      */
-    private $userObject;
+    protected $userObject;
 
     /**
      * @var
      */
-    private $repositoryId;
+    protected $repositoryId;
 
     /**
      * @var
      */
-    private $repositoryObject;
+    protected $repositoryObject;
 
     public function __construct($userId = null, $repositoryId = null)
     {

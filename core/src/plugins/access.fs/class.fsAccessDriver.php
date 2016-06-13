@@ -23,6 +23,7 @@ namespace Pydio\Access\Driver\StreamProvider\FS;
 
 use DOMNode;
 use DOMXPath;
+use GuzzleHttp\Stream\Stream;
 use Normalizer;
 use PclZip;
 use Psr\Http\Message\ResponseInterface;
@@ -1151,6 +1152,11 @@ class fsAccessDriver extends AbstractAccessDriver implements IAjxpWrapperProvide
                 if ($patch) {
                     $nonPatchedPath = fsAccessWrapper::unPatchPathForBaseDir($path);
                 }
+
+                //$stream = Stream::factory($path);
+                //$meta = $stream->getMetadata();
+                //print_r($meta);
+
                 $testPath = @stat($path);
                 if($testPath === null || $testPath === false){
                     throw new \Exception("There was a problem trying to open folder ". $path. ", please check your Administrator");
@@ -1187,6 +1193,7 @@ class fsAccessDriver extends AbstractAccessDriver implements IAjxpWrapperProvide
                     $parentAjxpNode = $selection->nodeForPath("/");
                     Controller::applyHook("node.read", [&$parentAjxpNode]);
                     $nodesList->setParentNode($parentAjxpNode);
+                    
                     foreach($uniqueNodes as $node){
                         if(!file_exists($node->getUrl()) || (!is_readable($node->getUrl()) && !is_writable($node->getUrl()))) continue;
                         $nodeName = $node->getLabel();

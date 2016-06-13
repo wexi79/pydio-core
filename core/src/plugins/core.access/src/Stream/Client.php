@@ -97,7 +97,7 @@ class Client extends GuzzleClient implements ClientInterface
      * @return array Associative array containing the stats
      */
     public function formatUrlStat($arr) {
-        return $STAT_TEMPLATE;
+        return self::$STAT_TEMPLATE;
     }
 
     /**

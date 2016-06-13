@@ -1,0 +1,198 @@
+{
+  "name" : "DropBox Client",
+  "description" : "DropBox REST API client",
+  "operations" : {
+    "Ls" : {
+      "httpMethod" : "POST",
+      "uri" : "files/list_folder",
+      "summary" : "Open the object as a stream for the StreamWrapper to access",
+      "responseClass" : "OpenOutput",
+      "parameters" : {
+        "path" : {
+          "required" : true,
+          "type" : "string",
+          "location" : "json",
+          "sentAs" : "path",
+          "filters": [{
+              "method": "Pydio\\Access\\DropBox::convertString",
+              "args": [ "test", "@value", "@api" ]
+          }]
+        }
+      }
+    },
+    "Open" : {
+      "httpMethod" : "POST",
+      "uri" : "files/download",
+      "summary" : "Open the object as a stream for the StreamWrapper to access",
+      "responseClass" : "OpenOutput",
+      "parameters" : {
+        "path/fullpath" : {
+          "required" : true,
+          "type" : "string",
+          "location" : "json",
+          "sentAs": "path"
+        }
+      }
+    },
+    "Stat" : {
+      "httpMethod" : "POST",
+      "uri" : "files/get_metadata",
+      "summary" : "Returns the stat of a specific object",
+      "responseClass" : "StatOutput",
+      "exceptions" : false,
+      "parameters" : {
+        "path" : {
+          "required" : true,
+          "type" : "string",
+          "location" : "json",
+          "sentAs": "path",
+          "filters": [{
+            "method": "\\Pydio\\Access\\DropBox\\Driver::convertPath",
+            "args": [ "@value" ]
+          }]
+        }
+      }
+    },
+    "Mkdir" : {
+      "httpMethod" : "POST",
+      "uri" : "files/create_folder",
+      "responseClass" : "MkdirOutput",
+      "parameters" : {
+        "path/fullpath" : {
+          "required" : true,
+          "type" : "string",
+          "location" : "json",
+          "sentAs": "path"
+        }
+      }
+    },
+    "Rmdir" : {
+      "httpMethod" : "POST",
+      "uri" : "files/delete",
+      "responseClass" : "RmdirOutput",
+      "parameters" : {
+        "path/fullpath" : {
+          "required" : true,
+          "type" : "string",
+          "location" : "json",
+          "sentAs": "path"
+        }
+      }
+    },
+    "Rename" : {
+      "httpMethod" : "POST",
+      "uri" : "files/move",
+      "responseClass" : "RenameOutput",
+      "parameters" : {
+        "frompath/fullpath" : {
+          "required" : true,
+          "type" : "string",
+          "location" : "json",
+          "sentAs": "from_path"
+        },
+        "topath/fullpath" : {
+          "required" : true,
+          "type" : "string",
+          "location" : "json",
+          "sentAs": "to_path"
+        }
+      }
+    },
+    "Put" : {
+      "httpMethod" : "POST",
+      "uri": "files/upload",
+      "responseClass" : "PutOutput",
+      "parameters" : {
+        "path/fullpath": {
+          "required": true,
+          "type": "string",
+          "location": "query",
+          "sentAs": "path"
+        },
+        "body" : {
+          "location" : "body"
+        }
+      }
+    },
+    "Delete" : {
+      "httpMethod" : "POST",
+      "uri" : "files/delete",
+      "responseClass" : "DeleteOutput",
+      "parameters" : {
+        "path/fullpath" : {
+          "required" : true,
+          "type" : "string",
+          "location" : "json",
+          "sentAs": "path"
+        }
+      }
+    }
+  },
+  "models" : {
+    "OpenOutput" : {
+      "type" : "object",
+      "location": "json",
+      "properties" : {
+        "entries": {
+          "type" : "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "StatOutput" : {
+      "type" : "object",
+      "location" : "json",
+      "properties" : {
+        ".tag": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "path_lower": {
+          "type": "string"
+        },
+        "path_display": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "client_modified": {
+          "type": "string"
+        },
+        "server_modified": {
+          "type": "string"
+        },
+        "rev": {
+          "type": "string"
+        },
+        "size": {
+          "type": "string"
+        }
+      }
+    },
+    "MkdirOutput" : {
+      "type" : "object"
+    },
+    "RmdirOutput" : {
+      "type" : "object"
+    },
+    "RenameOutput" : {
+      "type" : "object"
+    },
+    "PutOutput" : {
+      "type" : "object"
+    },
+    "DeleteOutput" : {
+      "type": "object"
+    }
+  }
+}

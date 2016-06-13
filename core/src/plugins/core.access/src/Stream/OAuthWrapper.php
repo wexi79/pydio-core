@@ -10,24 +10,137 @@ namespace Pydio\Access\Core\Stream;
 
 defined('AJXP_EXEC') or die('Access not allowed');
 
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Message\ResponseInterface;
+use Pydio\Core\Exception\ActionNotFoundException;
+use Pydio\Core\Exception\AuthRequiredException;
+use Pydio\Core\Exception\RepositoryLoadException;
 use Pydio\Access\Core\AJXP_SchemeTranslatorWrapper;
 use Pydio\Access\Core\Model\AJXP_Node;
 use Pydio\Core\Services\RepositoryService;
 use Pydio\Core\Utils\Utils;
-use Pydio\Core\Services\AuthService;
 use Pydio\Core\Services\CacheService;
+use Pydio\Core\Http\Server;
 use CommerceGuys\Guzzle\Oauth2\GrantType\AuthorizationCode;
-use CommerceGuys\Guzzle\Oauth2\AccessToken;
 use CommerceGuys\Guzzle\Oauth2\GrantType\RefreshToken;
 use CommerceGuys\Guzzle\Oauth2\Oauth2Subscriber;
 use GuzzleHttp\Client as GuzzleClient;
 use Pydio\Core\Services\ConfService;
 use Pydio\Core\Exception\PydioUserAlertException;
 use Exception;
-use GuzzleHttp\Exception\RequestException;
+use Zend\Diactoros\Response\EmptyResponse;
+
 
 class OAuthWrapper extends AJXP_SchemeTranslatorWrapper
 {
+    /**
+     * @param ServerRequestInterface $request
+     * @param ResponseInterface $response
+     * @param callable|null $next
+     * @return ResponseInterface
+     * @throws AuthRequiredException
+     * @throws PydioUserAlertException
+     * @throws RepositoryLoadException
+     */
+    public static function handleRequest(ServerRequestInterface $request, ResponseInterface &$response, callable $next = null) {
+
+        /* @var ContextInterface $ctx */
+        $ctx = $request->getAttribute("ctx");
+        $httpVars = $request->getParsedBody();
+
+        // Context Variables
+        $repository = $ctx->getRepository();
+        $user = $ctx->getUser();
+
+        // Repository options
+        $clientId     = $repository->getContextOption($ctx, 'CLIENT_ID');
+        $clientSecret = $repository->getContextOption($ctx, 'CLIENT_SECRET');
+        $scope        = $repository->getContextOption($ctx, 'SCOPE');
+        $authUrl      = $repository->getContextOption($ctx, 'AUTH_URL');
+        $tokenUrl     = $repository->getContextOption($ctx, 'TOKEN_URL');
+        $redirectUrl  = $repository->getContextOption($ctx, 'REDIRECT_URL');
+
+        $authUrl .= '?client_id=' . $clientId .
+            '&scope=' . $scope .
+            '&redirect_uri=' . urlencode($redirectUrl) .
+            '&response_type=code';
+
+        // Retrieving tokens
+        $tokensKey = self::getTokenKey($repository->getId(), $user->getId());
+        $tokens = self::getTokens($tokensKey);
+
+        $accessToken = $tokens[0];
+        $refreshToken = $tokens[1];
+
+        // OAuth 2 Tokens
+        $oauth2Client = new GuzzleClient(['base_url' => $tokenUrl]);
+
+        // Mandatory config
+        $config = [
+            'client_id'     => $clientId,
+            'client_secret' => $clientSecret,
+            'redirect_uri'  => $redirectUrl,
+            'token_url'     => '',
+            'auth_location' => 'body',
+        ];
+
+        // Non-mandatory
+        if (!empty($scope)) {
+            $config['scope'] = $scope;
+        }
+
+        // Setting up the subscriber
+        if (!empty($httpVars['code'])) {
+            // Authorization code
+            $config['code'] = $httpVars['code'];
+
+            $accessToken = new AuthorizationCode($oauth2Client, $config);
+            $refreshToken = new RefreshToken($oauth2Client, $config);
+
+            $oauth2 = new Oauth2Subscriber($accessToken, $refreshToken);
+        } else if (!empty($accessToken)) {
+            if (empty($refreshToken)) {
+                // Using access token
+                $oauth2 = new Oauth2Subscriber($accessToken, null);
+                $oauth2->setAccessToken($accessToken);
+            } else {
+                // Refresh Token
+                $config['refresh_token'] = $refreshToken;
+
+                $oauth2 = new Oauth2Subscriber(null, new RefreshToken($oauth2Client, $config));
+
+                $oauth2->setAccessToken($accessToken);
+                $oauth2->setRefreshToken($refreshToken);
+            }
+        }
+
+        if (empty($oauth2)) {
+            throw new PydioUserAlertException("Please go to <a style=\"text-decoration:underline;\" href=\"" . $authUrl . "\">" . $authUrl . "</a> to authorize the access to your onedrive. Then try again to switch to this workspace");
+        }
+
+        // Retrieving access token and checking access
+        try {
+            $accessToken = $oauth2->getAccessToken();
+            $refreshToken = $oauth2->getRefreshToken();
+        } catch (\Exception $e) {
+            throw new PydioUserAlertException("Please go to <a style=\"text-decoration:underline;\" href=\"" . $authUrl . "\">" . $authUrl . "</a> to authorize the access to your onedrive. Then try again to switch to this workspace");
+        }
+
+        // Saving tokens for later use
+        $accessToken = $accessToken->getToken();
+        if (isset($refreshToken)) {
+            $refreshToken = $refreshToken->getToken();
+        }
+        self::setTokens($tokensKey, $accessToken, $refreshToken);
+
+        $request = $request
+            ->withAttribute('oauth2', $oauth2);
+        
+        $response = Server::callNextMiddleWare($request, $response, $next);
+
+        return [$request, $response];
+    }
+
     /**
      * @param $url
      * @return bool|void
@@ -96,17 +209,22 @@ class OAuthWrapper extends AJXP_SchemeTranslatorWrapper
         // OAuth 2 Tokens
         $oauth2Client = new GuzzleClient(['base_url' => $tokenUrl]);
 
+        // Mandatory config
         $config = [
             'client_id'     => $clientId,
             'client_secret' => $clientSecret,
-            'scope'         => $scope,
             'redirect_uri'  => $redirectUrl,
             'token_url'     => '',
             'auth_location' => 'body',
         ];
 
+        // Non-mandatory
+        if (!empty($scope)) {
+            $config['scope'] = $scope;
+        }
+
         // Setting up the subscriber
-        if (empty($refreshToken) || !empty($_SESSION['oauth_code'])) {
+        if (!empty($_SESSION['oauth_code'])) {
             // Authorization code
             $config['code'] = $_SESSION['oauth_code'];
 
@@ -116,16 +234,26 @@ class OAuthWrapper extends AJXP_SchemeTranslatorWrapper
             $oauth2 = new Oauth2Subscriber($accessToken, $refreshToken);
 
             unset($_SESSION['oauth_code']);
-        } else {
-            // Refresh Token
-            $config['refresh_token'] = $refreshToken;
+        } else if (!empty($accessToken)) {
+            if (empty($refreshToken)) {
+                // Using access token
+                $oauth2 = new Oauth2Subscriber($accessToken, null);
+                $oauth2->setAccessToken($accessToken);
+            } else {
+                // Refresh Token
+                $config['refresh_token'] = $refreshToken;
 
-            $oauth2 = new Oauth2Subscriber(null, new RefreshToken($oauth2Client, $config));
+                $oauth2 = new Oauth2Subscriber(null, new RefreshToken($oauth2Client, $config));
 
-            $oauth2->setAccessToken($accessToken);
-            $oauth2->setRefreshToken($refreshToken);
+                $oauth2->setAccessToken($accessToken);
+                $oauth2->setRefreshToken($refreshToken);
+            }
         }
 
+        if (empty($oauth2)) {
+            throw new PydioUserAlertException("Please go to <a style=\"text-decoration:underline;\" href=\"" . $authUrl . "\">" . $authUrl . "</a> to authorize the access to your onedrive. Then try again to switch to this workspace");
+        }
+        
         // Retrieving access token and checking access
         try {
             $accessToken = $oauth2->getAccessToken();
@@ -135,7 +263,11 @@ class OAuthWrapper extends AJXP_SchemeTranslatorWrapper
         }
 
         // Saving tokens for later use
-        self::setTokens($tokensKey, $accessToken->getToken(), $refreshToken->getToken());
+        $accessToken = $accessToken->getToken();
+        if (isset($refreshToken)) {
+            $refreshToken = $refreshToken->getToken();
+        }
+        self::setTokens($tokensKey, $accessToken, $refreshToken);
 
         // Saving subscriber in context
         $default[$repoProtocol]['oauth2_subscriber'] = $oauth2;
@@ -172,16 +304,19 @@ class OAuthWrapper extends AJXP_SchemeTranslatorWrapper
     }
 
     /**
-     * @param $oauth_tokens
+     * @param $key
+     * @param $accessToken
+     * @param $refreshToken
      * @return bool
      * @throws Exception
+     * @internal param $oauth_tokens
      */
     private function setTokens($key, $accessToken, $refreshToken)
     {
         $value = [$accessToken, $refreshToken];
 
         // Save in file
-        Utils::saveSerialFile(AJXP_DATA_PATH . '/plugins/access.onedrive/' . $key, $value, true);
+        Utils::saveSerialFile(AJXP_DATA_PATH . '/plugins/access.dropbox/' . $key, $value, true);
 
         // Save in cache
         CacheService::save(AJXP_CACHE_SERVICE_NS_SHARED, $key, $value);

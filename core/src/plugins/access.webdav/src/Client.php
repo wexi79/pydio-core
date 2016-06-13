@@ -70,7 +70,7 @@ class Client extends CoreClient
      */
     public function registerStreamWrapper()
     {
-        StreamWrapper::register($this, self::PROTOCOL);
+        StreamWrapper::register(self::PROTOCOL);
 
         return $this;
     }

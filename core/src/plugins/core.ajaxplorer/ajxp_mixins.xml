@@ -108,7 +108,7 @@
         <server_settings uuidAttr="name">
             <param group="MIXIN_MESSAGE[OAuth Commons]" name="CLIENT_ID" type="string" label="MIXIN_MESSAGE[Client ID]" description="MIXIN_MESSAGE[Client ID]" mandatory="true"/>
             <param group="MIXIN_MESSAGE[OAuth Commons]" name="CLIENT_SECRET" type="string" label="MIXIN_MESSAGE[Client SECRET]" description="MIXIN_MESSAGE[Client SECRET]" mandatory="true"/>
-            <param group="MIXIN_MESSAGE[OAuth Commons]" name="SCOPE" type="string" label="MIXIN_MESSAGE[Scope]" description="MIXIN_MESSAGE[Scope]" mandatory="true"/>
+            <param group="MIXIN_MESSAGE[OAuth Commons]" name="SCOPE" type="string" label="MIXIN_MESSAGE[Scope]" description="MIXIN_MESSAGE[Scope]" default=""/>
             <param group="MIXIN_MESSAGE[OAuth Commons]" name="AUTH_URL" type="string" label="MIXIN_MESSAGE[Auth URL]" description="MIXIN_MESSAGE[API endpoint - Used to launch the window allowing the user to authenticate and accept the terms of the app]" mandatory="true"/>
             <param group="MIXIN_MESSAGE[OAuth Commons]" name="TOKEN_URL" type="string" label="MIXIN_MESSAGE[Token URL]" description="MIXIN_MESSAGE[API endpoint - Used to refresh or validate the token retrieved in the authentication part]" mandatory="true"/>
             <param group="MIXIN_MESSAGE[OAuth Commons]" name="REDIRECT_URL" type="string" label="MIXIN_MESSAGE[Redirect URL]" description="MIXIN_MESSAGE[API setting - Redirect URL for the OAuth Application]" mandatory="true"/>

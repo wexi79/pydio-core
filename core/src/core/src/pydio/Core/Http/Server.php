@@ -118,11 +118,11 @@ class Server
         if($this->middleWares->valid()){
             $callable = $this->middleWares->current();
             $this->middleWares->next();
-            $response = call_user_func_array($callable, array($request, $response, function($req, $res){
+            list ($request, $response) = call_user_func_array($callable, array($request, $response, function($req, $res){
                 return $this->nextCallable($req, $res);
             }));
         }
-        return $response;
+        return [$request, $response];
     }
 
     
@@ -167,11 +167,11 @@ class Server
     }
 
     public function listen(){
-
         $response = new Response();
         $this->middleWares->rewind();
-        $this->nextCallable($this->getRequest(), $response);
-
+        $request = $this->getRequest();
+        list ($request, $response) = $this->nextCallable($request, $response);
+        return [$request, $response];
     }
 
     /**

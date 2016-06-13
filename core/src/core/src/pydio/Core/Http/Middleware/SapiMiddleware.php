@@ -61,7 +61,7 @@ class SapiMiddleware implements ITopLevelMiddleware
         $this->parseRequestRouteAndParams($request, $response);
 
         $response = Server::callNextMiddleWare($request, $response, $next);
-
+        
         if(headers_sent()){
             return;
         }
@@ -107,6 +107,8 @@ class SapiMiddleware implements ITopLevelMiddleware
                 $response = $response->withHeader("Content-type", "text/xml; charset=UTF-8");
             }
         }
+
+        $size = $response->getBody()->getSize();
 
         if($response !== false && ($response->getBody()->getSize() || $response instanceof \Zend\Diactoros\Response\EmptyResponse) || $response->getStatusCode() != 200) {
             $emitter = new \Zend\Diactoros\Response\SapiEmitter();
