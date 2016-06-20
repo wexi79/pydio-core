@@ -365,6 +365,7 @@ class AJXP_MetaStreamWrapper implements IAjxpWrapper
     public function dir_opendir($path, $options)
     {
         $newPath = self::translateScheme($path, $this);
+
         $this->handle = opendir($newPath);
         if($this->handle !== false){
             $this->currentDirPath = parse_url($path, PHP_URL_PATH);
@@ -612,13 +613,9 @@ class AJXP_MetaStreamWrapper implements IAjxpWrapper
     public function url_stat($path, $flags)
     {
         $path = $this->translateScheme($path);
-        $node = new AJXP_Node($path);
 
-        $stream = Stream::factory($node);
-        $resource = StreamWrapper::getResource($path, $stream);
-
-        $stat = fstat($resource);
-        if($stat === false){
+        $stat = @stat($path);
+        if($stat === false) {
             return null;
         }
         $bytesize = $stat["size"];

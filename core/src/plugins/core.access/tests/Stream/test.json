@@ -4,7 +4,7 @@
     "operations" : {
         "Stat" : {
             "httpMethod" : "GET",
-            "uri": "575e7674110000d90f299253",
+            "uri": "57625f95100000970e8b13d7",
             "responseClass": "BodyOutput"
         },
         "Open" : {

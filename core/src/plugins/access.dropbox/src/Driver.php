@@ -26,31 +26,15 @@ defined('AJXP_EXEC') or die( 'Access not allowed');
 
 require_once(__DIR__ . '/../vendor/autoload.php');
 
-use Exception;
-
-use GuzzleHttp\Psr7\Stream;
-use GuzzleHttp\Psr7\StreamWrapper;
-use GuzzleHttp\Tests\Stream\GuzzleStreamWrapperTest;
 use Pydio\Access\Core\Model\AJXP_Node;
-use Pydio\Access\Core\Model\NodesDiff;
-use Pydio\Access\Core\Model\NodesList;
-use Pydio\Access\Core\Model\UserSelection;
-use Pydio\Access\Core\Stream\Context;
-use Pydio\Access\Core\Stream\ContextInterface;
+use Pydio\Access\Core\Stream\OAuthStream;
+use Pydio\Access\Core\Stream\Stream;
 use Pydio\Access\Driver\StreamProvider\FS\fsAccessDriver;
-use Pydio\Access\Core\AJXP_MetaStreamWrapper;
-use Pydio\Access\Core\RecycleBinManager;
-use Pydio\Core\Services\ConfService;
-use Pydio\Core\Model\RepositoryInterface;
-use Pydio\Core\Services\LocaleService;
-use Pydio\Core\Utils\Utils;
+use Pydio\Access\DropBox\Listener\DropBoxSubscriber;
+use Pydio\Core\Model\ContextInterface;
 
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Message\ResponseInterface;
-
-use CommerceGuys\Guzzle\Oauth2\GrantType\RefreshToken;
-use CommerceGuys\Guzzle\Oauth2\GrantType\AuthorizationCode;
-use CommerceGuys\Guzzle\Oauth2\Oauth2Subscriber;
 
 /**
  * AJXP_Plugin to access a DropBox enabled server
@@ -59,19 +43,11 @@ use CommerceGuys\Guzzle\Oauth2\Oauth2Subscriber;
  */
 class Driver extends fsAccessDriver
 {
-    const PROTOCOL = "pydio.dropbox";
+    const PROTOCOL = "access.dropbox";
     const RESOURCES_PATH = "Resources";
     const RESOURCES_FILE = "dropbox.json";
 
-    /**
-     * @var Context
-     */
-    private $context;
-
-    /**
-     * @var Server $server
-     */
-    private $server;
+    public $driverType = "dropbox";
 
     /**
      * Driver Initialization
@@ -81,40 +57,46 @@ class Driver extends fsAccessDriver
     public function init($repository, $options = array())
     {
         parent::init($repository, $options);
-
-
     }
 
     /**
      * Repository Initialization
-     * @param \Pydio\Core\Model\ContextInterface $context
+     * @param ContextInterface $context
      * @return bool|void
      * @internal param ContextInterface $contextInterface
      */
-    protected function initRepository(\Pydio\Core\Model\ContextInterface $context)
+    protected function initRepository(ContextInterface $context)
     {
-        $this->server = new Server('pydio.dropbox');
-        $this->context = new Context($context->getUser()->getId(), $context->getRepositoryId());
-
         $this->detectStreamWrapper(true);
-        $client = new Client();
-        $client->registerStreamWrapper();
+
+        Stream::addContextOption($context, [
+            "subscribers" => [new DropBoxSubscriber()]
+        ]);
 
         return true;
     }
 
-    public function switchAction(ServerRequestInterface &$request, ResponseInterface &$response)
-    {
-        if (isset($this->server)) {
-            $request = $request->withAttribute("ctx", $this->context);
-            $this->server->setRequest($request);
-            list ($request, $_) = $this->server->listen();
+    public function switchAction(ServerRequestInterface &$request, ResponseInterface &$response) {
+        $httpVars = $request->getParsedBody();
+
+        if (isset($httpVars["code"])) {
+            $context = $request->getAttribute("ctx");
+
+            Stream::addContextOption($context, [
+                "oauth_code" => $httpVars["code"]
+            ]);
+
+            // Simulate the creation of a stream to ensure we store the oauth in the stream context
+            $stream = new OAuthStream(Stream::factory('php://memory'), $context);
+            $stream->close();
         }
 
         return parent::switchAction($request, $response);
     }
 
-
+    /**************************************************
+     * Static functions used in the  @return string
+     **************************************************/
     public static function convertPath($value) {
         $node = new AJXP_Node($value);
         $path = $node->getPath();
@@ -122,6 +104,13 @@ class Driver extends fsAccessDriver
         if (isset($path)) {
             return $path;
         }
-        return "/";
+        return "";
+    }
+
+    public static function convertToJSON($key, $value) {
+        $key = '' . $key->getName();
+        $value = '' . $value;
+        $arr = [$key => $value];
+        return json_encode($arr);
     }
 }

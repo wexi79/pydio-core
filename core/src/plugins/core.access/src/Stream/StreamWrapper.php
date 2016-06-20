@@ -20,7 +20,12 @@
  */
 
 namespace Pydio\Access\Core\Stream;
+use ArrayIterator;
+use GuzzleHttp\Stream\GuzzleStreamWrapper;
 use GuzzleHttp\Stream\StreamInterface;
+use Pydio\Access\Core\Model\AJXP_Node;
+use Pydio\Core\Utils\Utils;
+use React\Promise\Deferred;
 
 
 /**
@@ -36,43 +41,12 @@ class StreamWrapper
 
     /** @var string r, r+, or w */
     private $mode;
-    
-    /**
-     * @var array The next key to retrieve when using a directory iterator. Helps for fast directory traversal.
-     */
-    protected static $nextStat = array();
 
-    /**
-     * @var array The list of files not found received as response
-     * If we receive a 404 once, we should be able to tell if we created the file after that
-     */
-    protected static $filesNotFound = array();
+    /** @var Deferred */
+    private $deferred;
 
-    /**
-     * Returns a resource representing the stream.
-     *
-     * @param $path
-     * @param StreamInterface $stream The stream to get a resource for
-     * @return resource
-     */
-    public static function getResource($path, StreamInterface $stream)
-    {
-        $scheme = parse_url($path, PHP_URL_SCHEME);
-        self::register($scheme);
-
-        if ($stream->isReadable()) {
-            $mode = $stream->isWritable() ? 'r+' : 'r';
-        } elseif ($stream->isWritable()) {
-            $mode = 'w';
-        } else {
-            throw new \InvalidArgumentException('The stream must be readable, '
-                . 'writable, or both.');
-        }
-    
-        return fopen($path, $mode, null, stream_context_create([
-            $scheme => ['stream' => $stream]
-        ]));
-    }
+    /** @var ArrayIterator */
+    private $iterator;
 
     /**
      * Registers the stream wrapper if needed
@@ -85,74 +59,147 @@ class StreamWrapper
         }
     }
 
-    public function stream_open($path, $mode, $options, &$opened_path)
-    {
-        $scheme = parse_url($path, PHP_URL_SCHEME);
+    public function stream_open($path, $mode, $options, &$opened_path) {
+        $node = new AJXP_Node($path);
+        $this->stream = new OAuthStream(Stream::factory($node), $node);
 
-        $options = stream_context_get_options($this->context);
+        return true;
+    }
 
-        if (!isset($options[$scheme]['stream'])) {
+    /**
+     * @param $path
+     * @param $options
+     * @return bool
+     */
+    public function dir_opendir($path, $options) {
+        $node = new AJXP_Node($path);
+        $this->stream = new OAuthStream(Stream::factory($node), $node);
+
+        // TODO - do that asynchronously
+        $contents = $this->stream->getContents();
+        $this->iterator = new ArrayIterator($contents);
+
+        return true;
+    }
+    
+    /**
+     * @return bool
+     */
+    public function dir_readdir() {
+        if (!$this->iterator->valid()) {
             return false;
         }
 
-        $this->mode = $mode;
-        $this->stream = $options[$scheme]['stream'];
+        $current =  $this->iterator->current();
+
+        $this->iterator->next();
+
+        return $current["name"];
+    }
+    /**
+     * @return bool
+     */
+    public function dir_closedir() {
+        $this->iterator = null;
+        $this->stream->close();
+        return true;
+    }
+
+    /**
+     * @return bool
+     */
+    public function dir_rewinddir() {
+        if (isset($this->iterator)) {
+            $this->iterator->rewind();
+        }
 
         return true;
     }
 
-    public function stream_read($count)
-    {
-        return $this->stream->read($count);
+    /**
+     * Enter description here...
+     *
+     * @param string $path
+     * @param int $mode
+     * @param int $options
+     * @return bool
+     */
+    public function mkdir($path, $mode, $options) {
+        $node = new AJXP_Node($path);
+        $stream = new OAuthStream(Stream::factory($node), $node);
+        
+        return $stream->mkdir();
     }
 
-    public function stream_write($data)
-    {
-        return (int) $this->stream->write($data);
+    /**
+     * Enter description here...
+     *
+     * @param string $path
+     * @param int $mode
+     * @param int $options
+     * @return bool
+     */
+    public function rmdir($path, $options) {
+        $node = new AJXP_Node($path);
+        $stream = new OAuthStream(Stream::factory($node), $node);
+
+        return $stream->rmdir();
     }
 
-    public function stream_tell()
-    {
-        return $this->stream->tell();
+    public function url_stat($path, $flags) {
+        $node = new AJXP_Node($path);
+        $stream = new OAuthStream(Stream::factory($node), $node);
+        $resource = PydioStreamWrapper::getResource($stream);
+        $stat = fstat($resource);
+        fclose($resource);
+
+        return $stat;
     }
 
-    public function stream_eof()
-    {
-        return $this->stream->eof();
-    }
-
-    public function stream_seek($offset, $whence)
-    {
-        $this->stream->seek($offset, $whence);
-
+    public static function isSeekable() {
         return true;
     }
 
-    public function stream_stat()
+    public static function isRemote() {
+        return true;
+    }
+
+    public static function getRealFSReference($path, $persistent = false)
     {
-        static $modeMap = [
-            'r'  => 33060,
-            'r+' => 33206,
-            'w'  => 33188
-        ];
+        $node = new AJXP_Node($path);
 
-        $mode = $modeMap[$this->mode];
-        $size = $this->stream->getSize() ?: 0;
+        $nodeStream = new OAuthStream(Stream::factory($node), $node);
+        $nodeHandle = PydioStreamWrapper::getResource($nodeStream);
 
-        return [
-            'dev'     => 0,
-            'ino'     => 0,
-            'mode'    => $mode,
-            'nlink'   => 0,
-            'uid'     => 0,
-            'gid'     => 0,
-            'rdev'    => 0,
-            'size'    => $size,
-            'atime'   => 0,
-            'mtime'   => 0,
-            'ctime'   => 0,
-            'blksize' => 0,
-            'blocks'  => 0
-        ];
+        $nodeStream->getContents();
+
+        $tmpFile = Utils::getAjxpTmpDir()."/".md5(time()).".".pathinfo($path, PATHINFO_EXTENSION);
+        $tmpHandle = fopen($tmpFile, "wb");
+
+        self::copyStreamInStream($nodeHandle, $tmpHandle);
+
+        fclose($tmpHandle);
+
+        if (!$persistent) {
+            register_shutdown_function(array("AJXP_Utils", "silentUnlink"), $tmpFile);
+        }
+        return $tmpFile;
+    }
+
+    public static function copyFileInStream($path, $stream)
+    {
+        $fp = fopen($path, "r");
+
+        self::copyStreamInStream($fp, $stream);
+
+        fclose($fp);
+    }
+
+    public static function copyStreamInStream($from, $to)
+    {
+        while (!feof($from)) {
+            $data = fread($from, 4096);
+            fwrite($to, $data, strlen($data));
+        }
     }
 }

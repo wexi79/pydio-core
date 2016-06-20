@@ -188,6 +188,8 @@ class ImagePreviewer extends Plugin
             } else {
                 $realFile = $ajxpNode->getRealFile();
                 list($width, $height, $type, $attr) = @getimagesize($realFile);
+                /*$contents = stream_get_contents($realFile);
+                list($width, $height, $type, $attr) = getimagesizefromstring($contents);*/
 
                 if($this->getContextualOption($context, "EXIF_ROTATION")){
                     require_once(AJXP_INSTALL_PATH."/plugins/editor.diaporama/PThumb.lib.php");
