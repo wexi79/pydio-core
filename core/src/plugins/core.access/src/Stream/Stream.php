@@ -67,11 +67,17 @@ class Stream implements StreamInterface
         $this->customMetadata["uri"] = $node->getUrl();
 
         $apiUrl = $repository->getContextOption($ctx, "API_URL");
+        $host = $repository->getContextOption($ctx, "HOST");
+        $uri = $repository->getContextOption($ctx, "URI");
         $resourcePath = $repository->getContextOption($ctx, "API_RESOURCES_PATH");
         $resourceFile = $repository->getContextOption($ctx, "API_RESOURCES_FILE");
 
         if ($apiUrl == "") {
             $apiUrl = $options["api_url"];
+
+            if ($apiUrl == "") {
+                $apiUrl = $host . $uri;
+            }
         }
 
         if ($resourcePath == "") {
@@ -92,7 +98,11 @@ class Stream implements StreamInterface
         $jsonLoader = new JsonLoader($locator);
         $description = $jsonLoader->load($locator->locate($resourceFile));
         $description = new Description($description);
-        $client = new GuzzleClient($httpClient, $description);
+        $client = new GuzzleClient($httpClient, $description, $options);
+
+        foreach ($options["defaults"]["subscribers"] as $subscriber) {
+            $client->getEmitter()->attach($subscriber);
+        }
 
         $stream = Stream::factory($resource);
         $resource = PydioStreamWrapper::getResource($stream);
@@ -245,25 +255,6 @@ class Stream implements StreamInterface
         return null;
     }
 
-    public function isDir() {
-        if (!$this->resource) {
-            return null;
-        }
-
-        // Clear the stat cache if the stream has a URI
-        $uri = $this->getMetadata("uri");
-        if (isset($uri)) {
-            clearstatcache(true, $uri);
-        }
-
-        $stat = $this->stat();
-        if (isset($stat["type"])) {
-            return ($stat["type"] == "folder");
-        }
-
-        return null;
-    }
-
     public function isReadable() {
         return $this->readable;
     }
@@ -322,13 +313,9 @@ class Stream implements StreamInterface
     }
 
     private function ls() {
-        $path = $this->node->getPath();
-        if (!isset($path)) {
-            $path = "";
-        }
 
         $command = $this->client->getCommand('Ls', [
-            'path' => $path
+            'path' => $this->node
         ]);
 
         $result = $this->client->execute($command);
@@ -354,14 +341,14 @@ class Stream implements StreamInterface
         return $result;
     }
 
-    private function stat() {
+    public function stat() {
         $path = $this->node->getPath();
         if (!isset($path)) {
             $path = "";
         }
 
         $command = $this->client->getCommand('Stat', [
-            'path' => $path
+            'path' => $this->node
         ]);
 
         try {

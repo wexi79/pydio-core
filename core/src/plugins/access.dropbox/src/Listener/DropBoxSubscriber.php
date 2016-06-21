@@ -21,10 +21,8 @@
 
 namespace Pydio\Access\DropBox\Listener;
 
-use GuzzleHttp\Command\Event\ProcessEvent;
 use GuzzleHttp\Event\BeforeEvent;
 use GuzzleHttp\Event\CompleteEvent;
-use GuzzleHttp\Event\EndEvent;
 use GuzzleHttp\Event\ErrorEvent;
 use GuzzleHttp\Event\RequestEvents;
 use GuzzleHttp\Event\SubscriberInterface;

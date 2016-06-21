@@ -52,16 +52,14 @@ class StreamWrapper
      * Registers the stream wrapper if needed
      * @param $protocol
      */
-    public static function register($protocol)
-    {
+    public static function register($protocol) {
         if (!in_array($protocol, stream_get_wrappers())) {
             stream_wrapper_register($protocol, __CLASS__);
         }
     }
 
     public function stream_open($path, $mode, $options, &$opened_path) {
-        $node = new AJXP_Node($path);
-        $this->stream = new OAuthStream(Stream::factory($node), $node);
+        $this->stream = self::createStream($path);
 
         return true;
     }
@@ -72,8 +70,7 @@ class StreamWrapper
      * @return bool
      */
     public function dir_opendir($path, $options) {
-        $node = new AJXP_Node($path);
-        $this->stream = new OAuthStream(Stream::factory($node), $node);
+        $this->stream = self::createStream($path);
 
         // TODO - do that asynchronously
         $contents = $this->stream->getContents();
@@ -125,8 +122,7 @@ class StreamWrapper
      * @return bool
      */
     public function mkdir($path, $mode, $options) {
-        $node = new AJXP_Node($path);
-        $stream = new OAuthStream(Stream::factory($node), $node);
+        $stream = self::createStream($path);
         
         return $stream->mkdir();
     }
@@ -135,20 +131,17 @@ class StreamWrapper
      * Enter description here...
      *
      * @param string $path
-     * @param int $mode
      * @param int $options
      * @return bool
      */
     public function rmdir($path, $options) {
-        $node = new AJXP_Node($path);
-        $stream = new OAuthStream(Stream::factory($node), $node);
+        $stream = self::createStream($path);
 
         return $stream->rmdir();
     }
 
     public function url_stat($path, $flags) {
-        $node = new AJXP_Node($path);
-        $stream = new OAuthStream(Stream::factory($node), $node);
+        $stream = self::createStream($path);
         $resource = PydioStreamWrapper::getResource($stream);
         $stat = fstat($resource);
         fclose($resource);
@@ -166,17 +159,13 @@ class StreamWrapper
 
     public static function getRealFSReference($path, $persistent = false)
     {
-        $node = new AJXP_Node($path);
-
-        $nodeStream = new OAuthStream(Stream::factory($node), $node);
-        $nodeHandle = PydioStreamWrapper::getResource($nodeStream);
-
+        $nodeStream = self::createStream($path);
         $nodeStream->getContents();
 
         $tmpFile = Utils::getAjxpTmpDir()."/".md5(time()).".".pathinfo($path, PATHINFO_EXTENSION);
         $tmpHandle = fopen($tmpFile, "wb");
 
-        self::copyStreamInStream($nodeHandle, $tmpHandle);
+        self::copyStreamInStream(PydioStreamWrapper::getResource($nodeStream), $tmpHandle);
 
         fclose($tmpHandle);
 
@@ -201,5 +190,25 @@ class StreamWrapper
             $data = fread($from, 4096);
             fwrite($to, $data, strlen($data));
         }
+    }
+
+    public static function createStream($path)
+    {
+
+        // TODO - determines this with the config
+        $node = new AJXP_Node($path);
+        $repository = $node->getRepository();
+        $ctx = $node->getContext();
+
+        $useAuthStream = $repository->getContextOption($ctx, "USE_AUTH_STREAM");
+        $useOAuthStream = $repository->getContextOption($ctx, "USE_OAUTH_STREAM");
+
+        $nodeStream = Stream::factory($node);
+        if ($useAuthStream) $nodeStream = new AuthStream($nodeStream, $node);
+        if ($useOAuthStream) $nodeStream = new OAuthStream($nodeStream, $node);
+        $nodeStream = new MetadataCachingStream($nodeStream, $node);
+
+        return $nodeStream;
+
     }
 }

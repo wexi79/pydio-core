@@ -94,9 +94,9 @@ class Driver extends fsAccessDriver
         return parent::switchAction($request, $response);
     }
 
-    /**************************************************
-     * Static functions used in the  @return string
-     **************************************************/
+    /********************************************************
+     * Static functions used in the JSON service description
+     ********************************************************/
     public static function convertPath($value) {
         $node = new AJXP_Node($value);
         $path = $node->getPath();
