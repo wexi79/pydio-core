@@ -13,7 +13,7 @@ The resulting image has everything you need:
 
 1. Download those files.
 2. Change to this directory:
-3. Grab APIKEY and APISECRET from (pydio.com)[https://pydio.com]
+3. Grab APIKEY and APISECRET from [pydio.com](https://pydio.com)
 4. Edit Dockerfile with APIKEY and APISECRET
 5. Run the following command. 
 ```    
