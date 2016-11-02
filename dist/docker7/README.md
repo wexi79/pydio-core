@@ -10,7 +10,12 @@ The resulting image has everything you need:
 ## How to use this
 
 ### Step 1
-Download those files and get in this directory:
+
+ 1. Download those files.
+ 2. Change to this directory:
+ 3. Grab APIKEY and APISECRET from https://pydio.com
+ 4. Edit Dockerfile with APIKEY and APISECRET
+ 5. Run the following command:
 
     docker build .
 
