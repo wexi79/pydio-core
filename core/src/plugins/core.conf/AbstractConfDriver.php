@@ -596,7 +596,7 @@ abstract class AbstractConfDriver extends Plugin
         $action         = $requestInterface->getAttribute("action");
         $loggedUser     = $ctx->getUser();
         $mess           = LocaleService::getMessages();
-        $temporaryUploadFolder = ApplicationState::getTemporaryFolder()."/pydio_binaries_uploads";
+        $temporaryUploadFolder = ApplicationState::getTemporaryBinariesFolder();
 
         foreach ($httpVars as $getName=>$getValue) {
             $$getName = InputFilter::securePath($getValue);
