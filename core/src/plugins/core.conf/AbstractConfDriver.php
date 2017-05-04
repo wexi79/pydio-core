@@ -590,17 +590,17 @@ abstract class AbstractConfDriver extends Plugin
      */
     public function switchAction(ServerRequestInterface $requestInterface, ResponseInterface &$responseInterface)
     {
-        $httpVars = $requestInterface->getParsedBody();
-        $action = $requestInterface->getAttribute("action");
         /** @var ContextInterface $ctx */
-        $ctx    = $requestInterface->getAttribute("ctx");
-        $loggedUser = $ctx->getUser();
+        $ctx            = $requestInterface->getAttribute("ctx");
+        $httpVars       = $requestInterface->getParsedBody();
+        $action         = $requestInterface->getAttribute("action");
+        $loggedUser     = $ctx->getUser();
+        $mess           = LocaleService::getMessages();
+        $temporaryUploadFolder = ApplicationState::getTemporaryFolder()."/pydio_binaries_uploads";
 
         foreach ($httpVars as $getName=>$getValue) {
             $$getName = InputFilter::securePath($getValue);
         }
-
-        $mess = LocaleService::getMessages();
 
         switch ($action) {
             //------------------------------------
@@ -806,7 +806,7 @@ abstract class AbstractConfDriver extends Plugin
 
                     $updating = true;
                     OptionsHelper::parseStandardFormParameters($ctx, $httpVars, $data, "NEW_");
-                    $userId = $data["existing_user_id"];
+                    $userId = InputFilter::sanitize($data["existing_user_id"], InputFilter::SANITIZE_EMAILCHARS);
                     $userObject = UsersService::getUserById($userId);
                     if($userObject->getParent() !== $loggedUser->getId()){
                         throw new \Exception("Cannot find user");
@@ -855,21 +855,29 @@ abstract class AbstractConfDriver extends Plugin
                     UsersService::updateUser($userObject);
                 }
 
-                if ($action == "user_create_user" && isSet($newUserId)) {
+                if ($action == "user_create_user") {
 
-                    Controller::applyHook($updating?"user.after_update":"user.after_create", [$ctx, $userObject]);
-                    if (isset($data["send_email"]) && $data["send_email"] == true && !empty($data["email"])) {
-                        $mailer = PluginsService::getInstance($ctx)->getUniqueActivePluginForType("mailer");
-                        if ($mailer !== false) {
-                            $mess = LocaleService::getMessages();
-                            $link = ApplicationState::detectServerURL();
-                            $apptitle = ConfService::getGlobalConf("APPLICATION_TITLE");
-                            $subject = str_replace("%s", $apptitle, $mess["507"]);
-                            $body = str_replace(["%s", "%link", "%user", "%pass"], [$apptitle, $link, $newUserId, $data["new_password"]], $mess["508"]);
-                            $mailer->sendMail($ctx, [$data["email"]], $subject, $body);
+                    if(isSet($newUserId)){
+
+                        Controller::applyHook($updating?"user.after_update":"user.after_create", [$ctx, $userObject]);
+                        if (isset($data["send_email"]) && $data["send_email"] == true && !empty($data["email"])) {
+                            $mailer = PluginsService::getInstance($ctx)->getUniqueActivePluginForType("mailer");
+                            if ($mailer !== false) {
+                                $mess = LocaleService::getMessages();
+                                $link = ApplicationState::detectServerURL();
+                                $apptitle = ConfService::getGlobalConf("APPLICATION_TITLE");
+                                $subject = str_replace("%s", $apptitle, $mess["507"]);
+                                $body = str_replace(["%s", "%link", "%user", "%pass"], [$apptitle, $link, $newUserId, $data["new_password"]], $mess["508"]);
+                                $mailer->sendMail($ctx, [$data["email"]], $subject, $body);
+                            }
                         }
+                        $responseInterface = new JsonResponse(["result" => "SUCCESS", "createdUserId" => $newUserId]);
+
+                    }else{
+
+                        $responseInterface = new JsonResponse(["result" => "SUCCESS", "createdUserId" => $userId]);
+
                     }
-                    $responseInterface = new JsonResponse(["result" => "SUCCESS", "createdUserId" => $newUserId]);
 
                 } else {
 
@@ -1294,15 +1302,16 @@ abstract class AbstractConfDriver extends Plugin
             case "get_binary_param" :
 
                 if (isSet($httpVars["tmp_file"])) {
-                    $file = ApplicationState::getTemporaryFolder() ."/". InputFilter::securePath($httpVars["tmp_file"]);
-                    if (isSet($file)) {
+                    $file = $temporaryUploadFolder ."/". InputFilter::securePath($httpVars["tmp_file"]);
+                    if (file_exists($file)) {
                         session_write_close();
                         header("Content-Type:image/png");
                         readfile($file);
+                    }else{
+                        $responseInterface = $responseInterface->withStatus(401, 'Forbidden');
                     }
                 } else if (isSet($httpVars["binary_id"])) {
-                    if (isSet($httpVars["user_id"]) && $loggedUser != null
-                        && ( $loggedUser->getId() == $httpVars["user_id"] || $loggedUser->isAdmin() )) {
+                    if (isSet($httpVars["user_id"])) {
                         $context = ["USER" => InputFilter::sanitize($httpVars["user_id"], InputFilter::SANITIZE_EMAILCHARS)];
                     } else if($loggedUser !== null) {
                         $context = ["USER" => $loggedUser->getId()];
@@ -1318,10 +1327,12 @@ abstract class AbstractConfDriver extends Plugin
 
                 session_write_close();
                 if (isSet($httpVars["tmp_file"])) {
-                    $file = ApplicationState::getTemporaryFolder() ."/". InputFilter::securePath($httpVars["tmp_file"]);
-                    if (isSet($file)) {
+                    $file = $temporaryUploadFolder ."/". InputFilter::securePath($httpVars["tmp_file"]);
+                    if (file_exists($file)) {
                         header("Content-Type:image/png");
                         readfile($file);
+                    }else{
+                        $responseInterface = $responseInterface->withStatus(401, 'Forbidden');
                     }
                 } else if (isSet($httpVars["binary_id"])) {
                     $this->loadBinary([], InputFilter::sanitize($httpVars["binary_id"], InputFilter::SANITIZE_ALPHANUM));
@@ -1342,10 +1353,13 @@ abstract class AbstractConfDriver extends Plugin
                     } else {
                         $rand = substr(md5(time()), 0, 6);
                         $tmp = $rand."-". $boxData->getClientFilename();
-                        $boxData->moveTo(ApplicationState::getTemporaryFolder() . "/" . $tmp);
+                        if(!file_exists($temporaryUploadFolder)){
+                            mkdir($temporaryUploadFolder);
+                        }
+                        $boxData->moveTo($temporaryUploadFolder . "/" . $tmp);
                     }
                 }
-                if (isSet($tmp) && file_exists(ApplicationState::getTemporaryFolder() ."/".$tmp)) {
+                if (isSet($tmp) && file_exists($temporaryUploadFolder ."/".$tmp)) {
                     print('<script type="text/javascript">');
                     print('parent.formManagerHiddenIFrameSubmission("'.$tmp.'");');
                     print('</script>');
@@ -1419,6 +1433,7 @@ abstract class AbstractConfDriver extends Plugin
     /**
      * @param ServerRequestInterface $requestInterface
      * @param ResponseInterface $responseInterface
+     * @return ResponseInterface
      */
     public function publishPermissionsMask(ServerRequestInterface $requestInterface, ResponseInterface &$responseInterface){
         $mask = [];
